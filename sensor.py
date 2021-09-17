@@ -23,7 +23,7 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
-    ENERGY_WATT_HOUR,
+    ENERGY_KILO_WATT_HOUR,
 )
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
@@ -93,7 +93,7 @@ class FoxESS(SensorEntity):
 
     _attr_state_class = STATE_CLASS_TOTAL_INCREASING
     _attr_device_class = DEVICE_CLASS_ENERGY
-    _attr_native_unit_of_measurement = ENERGY_WATT_HOUR
+    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
 
     def __init__(self, rest, name):
         """Initialize a FoxESS sensor."""
