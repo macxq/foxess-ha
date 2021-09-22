@@ -30,10 +30,11 @@ import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 _ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
-_ENDPOINT_DATA = "https://www.foxesscloud.com/c/v0/device/earnings?deviceID=4f1bbc87-6ebd-45d9-8931-f73275481b8e"
+_ENDPOINT_DATA = "https://www.foxesscloud.com/c/v0/device/earnings?deviceID="
 
 ATTR_ENERGY_GENERATION = "energy_generation"
 ATTR_POWER_GENERATION = "power_generation"
+CONF_DEVICEID = "deviceID"
 
 CONF_SYSTEM_ID = "system_id"
 
@@ -46,6 +47,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_USERNAME): cv.string,
         vol.Required(CONF_PASSWORD): cv.string,
+        vol.Required(CONF_DEVICEID): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     }
 )
@@ -56,6 +58,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     name = config.get(CONF_NAME)
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
+    deviceID = config.get(CONF_DEVICEID)
     methodAuth = "POST"
     payloadAuth = {"user": username ,"password":password} 
     verify_ssl = DEFAULT_VERIFY_SSL
@@ -76,7 +79,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     headersData = {"Content-Type":"application/json;charset=UTF-8","Accept":"application/json, text/plain, */*","lang":"en", "token":token}
 
 
-    restData = RestData(hass, methodData, _ENDPOINT_DATA, None, headersData, None, None, verify_ssl)
+    restData = RestData(hass, methodData, _ENDPOINT_DATA+deviceID, None, headersData, None, None, verify_ssl)
     await restData.async_update()
 
     if restData.data is None:
