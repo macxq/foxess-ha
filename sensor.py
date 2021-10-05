@@ -69,12 +69,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 
     if restAuth.data is None:
-        _LOGGER.error("Unable to login to FoxESS Cloud ️")
+        _LOGGER.error("Unable to login to FoxESS Cloud - No data recived")
+        return False
+    
+    response = json.loads(restAuth.data)
+    
+    if response["result"] is None or response["result"]["token"] is  None:
+        _LOGGER.error("Unable to login to FoxESS Cloud: "+ restAuth.data)
         return False
     else:
-        _LOGGER.debug("Login succesfull "+restAuth.data)
+        _LOGGER.debug("Login succesfull"+ restAuth.data)
 
-    token = json.loads(restAuth.data)["result"]["token"]
+    token = response["result"]["token"]
     methodData = "GET" 
     headersData = {"Content-Type":"application/json;charset=UTF-8","Accept":"application/json, text/plain, */*","lang":"en", "token":token}
 
@@ -83,7 +89,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await restData.async_update()
 
     if restData.data is None:
-        _LOGGER.error("Unable to get data from FoxESS Cloud ️")
+        _LOGGER.error("Unable to get data from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("Data fetched "+restData.data)
