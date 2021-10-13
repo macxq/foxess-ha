@@ -5,6 +5,7 @@ from datetime import timedelta
 from datetime import datetime
 import logging
 import json
+import hashlib
 
 import voluptuous as vol
 
@@ -59,8 +60,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
     deviceID = config.get(CONF_DEVICEID)
+
+    hashedPassword = hashlib.md5(password.encode()).hexdigest()    
+
     methodAuth = "POST"
-    payloadAuth = {"user": username ,"password":password} 
+    payloadAuth = {"user": username ,"password":hashedPassword} 
     verify_ssl = DEFAULT_VERIFY_SSL
     headersAuth = {"Content-Type":"application/json;charset=UTF-8","Accept":"application/json, text/plain, */*","lang":"en"}
 
