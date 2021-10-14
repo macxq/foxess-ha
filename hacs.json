@@ -1,0 +1,5 @@
+{
+  "name": "Home Assistant & FoxESS integration",
+  "country": "NO",
+  "domains": ["energy", "sensor"]
+}
