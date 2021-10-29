@@ -2,7 +2,7 @@
 
 ## ⚙️ Installation
 
-Go to to home-assistan `/configcustom_components` folder and fetch the component:
+Go to to home-assistan `/config/configcustom_components` folder and fetch the component:
 
 ```bash
 git clone https://github.com/macxq/foxess-ha.git
@@ -11,7 +11,7 @@ git clone https://github.com/macxq/foxess-ha.git
 
 ## ♻️ Update
 
-Go to to home-assistan `/configcustom_components/foxess` folder and update the component:
+Go to to home-assistan `/config/configcustom_components/foxess` folder and update the component:
 
 ```bash
 git pull
