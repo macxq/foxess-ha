@@ -176,7 +176,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedingPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID)])
+    async_add_entities([FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -224,7 +224,7 @@ class FoxESSGridConsumptionPower(CoordinatorEntity,SensorEntity):
     def native_value(self) -> str | None:
         return  self.coordinator.data["raw"]["gridConsumptionPower"]
 
-class FoxESSFeedingPower(CoordinatorEntity,SensorEntity):
+class FoxESSFeedInPower(CoordinatorEntity,SensorEntity):
 
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
@@ -232,8 +232,8 @@ class FoxESSFeedingPower(CoordinatorEntity,SensorEntity):
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initing Entity - Feeding Power")
-        self._attr_name = name+" - Feeding Power"
+        _LOGGER.debug("Initing Entity - FeedIn Power")
+        self._attr_name = name+" - FeedIn Power"
         self._attr_unique_id=deviceID+"feedin-power"
         self.status = namedtuple(
             "status",
