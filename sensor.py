@@ -27,7 +27,7 @@ from homeassistant.const import (
     CONF_USERNAME,
     CONF_NAME,
     ENERGY_KILO_WATT_HOUR,
-    POWER_WATT,
+    POWER_KILO_WATT,
 
 )
 from homeassistant.helpers.update_coordinator import (
@@ -182,7 +182,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
-    _attr_native_unit_of_measurement = POWER_WATT
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
 
     def __init__(self, coordinator,name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -205,7 +205,7 @@ class FoxESSGridConsumptionPower(CoordinatorEntity,SensorEntity):
 
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
-    _attr_native_unit_of_measurement = POWER_WATT
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -228,13 +228,13 @@ class FoxESSFeedInPower(CoordinatorEntity,SensorEntity):
 
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
-    _attr_native_unit_of_measurement = POWER_WATT
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
         _LOGGER.debug("Initing Entity - FeedIn Power")
         self._attr_name = name+" - FeedIn Power"
-        self._attr_unique_id=deviceID+"feedin-power"
+        self._attr_unique_id=deviceID+"feedIn-power"
         self.status = namedtuple(
             "status",
             [
@@ -251,7 +251,7 @@ class FoxESSBatDischargePower(CoordinatorEntity,SensorEntity):
 
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
-    _attr_native_unit_of_measurement = POWER_WATT
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -274,7 +274,7 @@ class FoxESSBatChargePower(CoordinatorEntity,SensorEntity):
 
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
-    _attr_native_unit_of_measurement = POWER_WATT
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -348,9 +348,9 @@ class FoxESSEnergyFeedin(CoordinatorEntity,SensorEntity):
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initing Entity - Feedin")
-        self._attr_name = name+" - Feedin"
-        self._attr_unique_id=deviceID+"feedin"
+        _LOGGER.debug("Initing Entity - FeedIn")
+        self._attr_name = name+" - FeedIn"
+        self._attr_unique_id=deviceID+"feedIn"
         self.status = namedtuple(
             "status",
             [
