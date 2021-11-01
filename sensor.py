@@ -119,7 +119,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         now = datetime.now()
         
         methodRaw = "POST" 
-        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%m")+',"day":'+now.strftime("%d")+'}}'
+        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+
 
         restRaw = RestData(hass, methodRaw, _ENDPOINT_RAW, None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
         await restRaw.async_update()
@@ -139,7 +140,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         allData['raw'][variableName] =  None
 
         
-        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%m")+'}}'
+        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
+
 
         restReport= RestData(hass, methodRaw, _ENDPOINT_REPORT, None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
         await restReport.async_update()
