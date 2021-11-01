@@ -29,3 +29,19 @@ sensor:
 ```
 
 `foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page 
+
+
+## 📊 Provided entities
+
+HA Entity  | Measurement
+|---|---|
+Generation Power  |  kW 
+Grid Consumption Power  |  kW  
+FeedIn Power  |  kW  
+Bat Discharge Power  |  kW   
+Bat Charge Power  |  kW  
+Energy Generated  |  kWh 
+Grid Consumption  |  kWh 
+FeedIn  |  kWh  
+Bat Charge  |  kWh 
+Bat Discharge  |  kWh  
