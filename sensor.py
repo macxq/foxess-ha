@@ -18,6 +18,8 @@ from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
     SensorEntity,
 )
+
+
 from homeassistant.const import (
     ATTR_DATE,
     ATTR_TEMPERATURE,
@@ -46,9 +48,21 @@ _ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
 _ENDPOINT_EARNINGS = "https://www.foxesscloud.com/c/v0/device/earnings?deviceID="
 _ENDPOINT_RAW = "https://www.foxesscloud.com/c/v0/device/history/raw"
 _ENDPOINT_REPORT = "https://www.foxesscloud.com/c/v0/device/history/report"
+_ENDPOINT_ADDRESSBOOK= "https://www.foxesscloud.com/c/v0/device/addressbook?deviceID="
 
-ATTR_ENERGY_GENERATION = "energy_generation"
-ATTR_POWER_GENERATION = "power_generation"
+
+ATTR_DEVICE_SN = "deviceSN"
+ATTR_PLANTNAME = "plantName"
+ATTR_MODULESN = "moduleSN"
+ATTR_DEVICE_TYPE= "deviceType"
+ATTR_STATUS = "status"
+ATTR_COUNTRY = "country"
+ATTR_COUNTRYCODE = "countryCode"
+ATTR_CITY = "city"
+ATTR_ADDRESS = "address"
+ATTR_FEEDINDATE = "feedinDate"
+
+
 CONF_DEVICEID = "deviceID"
 
 CONF_SYSTEM_ID = "system_id"
@@ -114,12 +128,23 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         else:
             _LOGGER.debug("FoxESS Earnings data fetched correcly "+restEarnings.data)
             allData['earnings'] = json.loads(restEarnings.data)
+        
+        restAddressBook = RestData(hass, methodData, _ENDPOINT_ADDRESSBOOK+deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
+        await restAddressBook.async_update()
+
+
+        if restAddressBook.data is None:
+            _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
+            return False
+        else:
+            _LOGGER.debug("FoxESS Addressbook data fetched correcly "+restAddressBook.data)
+            allData['addressbook'] = json.loads(restAddressBook.data)
 
 
         now = datetime.now()
         
         methodRaw = "POST" 
-        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
 
         restRaw = RestData(hass, methodRaw, _ENDPOINT_RAW, None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
@@ -140,7 +165,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         allData['raw'][variableName] =  None
 
         
-        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
+        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
 
 
         restReport= RestData(hass, methodRaw, _ENDPOINT_REPORT, None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
@@ -178,7 +203,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID)])
+    async_add_entities([FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -295,6 +320,28 @@ class FoxESSBatChargePower(CoordinatorEntity,SensorEntity):
     def native_value(self) -> str | None:
         return  self.coordinator.data["raw"]["batChargePower"]   
 
+class FoxESSLoadPower(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Load Power")
+        self._attr_name = name+" - Load Power"
+        self._attr_unique_id=deviceID+"load-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["raw"]["loadsPower"]  
 
 class FoxESSEnergyGenerated(CoordinatorEntity,SensorEntity):
 
@@ -409,5 +456,74 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["report"]["dischargeEnergyToTal"]
+        return self.coordinator.data["report"]["dischargeEnergyToTal"]
 
+class FoxESSEnergyLoad(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_TOTAL_INCREASING
+    _attr_device_class = DEVICE_CLASS_ENERGY
+    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Load")
+        self._attr_name = name+" - Load"
+        self._attr_unique_id=deviceID+"load"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["report"]["loads"]
+
+class FoxESSInverter(CoordinatorEntity,SensorEntity):
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Inverter")
+        self._attr_name = name+" - Inverter"
+        self._attr_unique_id=deviceID+"Inverter"
+        self._attr_icon="mdi:solar-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+                ATTR_DEVICE_SN,
+                ATTR_PLANTNAME,
+                ATTR_MODULESN,
+                ATTR_DEVICE_TYPE,
+                ATTR_STATUS,
+                ATTR_COUNTRY,
+                ATTR_COUNTRYCODE,
+                ATTR_CITY,
+                ATTR_ADDRESS,
+                ATTR_FEEDINDATE
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if int(self.coordinator.data["addressbook"]["result"]["status"]) == 1:
+            return "on-line"
+        else:
+            return "off-line"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            ATTR_DEVICE_SN: self.coordinator.data["addressbook"]["result"][ATTR_DEVICE_SN],
+            ATTR_PLANTNAME: self.coordinator.data["addressbook"]["result"][ATTR_PLANTNAME],
+            ATTR_MODULESN: self.coordinator.data["addressbook"]["result"][ATTR_MODULESN],
+            ATTR_DEVICE_TYPE: self.coordinator.data["addressbook"]["result"][ATTR_DEVICE_TYPE],
+            ATTR_COUNTRY: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRY],
+            ATTR_COUNTRYCODE: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRYCODE],
+            ATTR_CITY: self.coordinator.data["addressbook"]["result"][ATTR_CITY],
+            ATTR_ADDRESS: self.coordinator.data["addressbook"]["result"][ATTR_ADDRESS],
+            ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE]
+        }
