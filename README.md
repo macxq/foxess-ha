@@ -45,3 +45,15 @@ Grid Consumption  |  kWh
 FeedIn  |  kWh  
 Bat Charge  |  kWh 
 Bat Discharge  |  kWh  
+
+## 🤔 Troubleshooting 
+
+Increase log level in your `/configuration.yaml` by adding:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.foxess: debug
+```
+
