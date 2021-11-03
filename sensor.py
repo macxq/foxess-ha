@@ -203,7 +203,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
+    async_add_entities([FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -527,3 +527,67 @@ class FoxESSInverter(CoordinatorEntity,SensorEntity):
             ATTR_ADDRESS: self.coordinator.data["addressbook"]["result"][ATTR_ADDRESS],
             ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE]
         }
+
+class FoxESSEnergySolar(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_TOTAL_INCREASING
+    _attr_device_class = DEVICE_CLASS_ENERGY
+    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Solar")
+        self._attr_name = name+" - Solar"
+        self._attr_unique_id=deviceID+"solar"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        loads = float(self.coordinator.data["report"]["loads"])
+        charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
+        feedIn = float(self.coordinator.data["report"]["feedin"])
+        gridConsumption = float(self.coordinator.data["report"]["gridConsumption"])
+        discharge =  float(self.coordinator.data["report"]["dischargeEnergyToTal"])
+
+        return loads + charge + feedIn - gridConsumption - discharge
+
+class FoxESSSolarPower(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Solar Power")
+        self._attr_name = name+" - Solar Power"
+        self._attr_unique_id=deviceID+"solar-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        loads = float(self.coordinator.data["raw"]["loadsPower"])
+        if self.coordinator.data["raw"]["batChargePower"] is None:
+            charge = 0
+        else:
+            charge = float(self.coordinator.data["raw"]["batChargePower"])
+        feedIn = float(self.coordinator.data["raw"]["feedinPower"])
+        gridConsumption = float(self.coordinator.data["raw"]["gridConsumptionPower"])
+        if self.coordinator.data["raw"]["batDischargePower"] is None:
+            discharge = 0
+        else:
+            discharge = float(self.coordinator.data["raw"]["batDischargePower"])
+
+        return loads + charge + feedIn - gridConsumption - discharge
