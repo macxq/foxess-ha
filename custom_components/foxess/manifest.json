@@ -1,5 +1,5 @@
 {
-  "domain": "foxess-ha",
+  "domain": "foxess",
   "name": "HA & FoxESSCloud integration",
   "documentation": "https://github.com/macxq/foxess-ha",
   "dependencies": ["rest"],
