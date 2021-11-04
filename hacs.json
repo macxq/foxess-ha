@@ -1,5 +1,6 @@
 {
-  "name": "Home Assistant & FoxESS integration",
+  "name": "FoxESS Cloud",
   "country": "NO",
-  "domains": ["energy", "sensor"]
+  "domains": ["energy", "sensor"],
+  "render_readme": "True"
 }

@@ -13,6 +13,8 @@ from homeassistant.components.rest.data import RestData
 from homeassistant.components.sensor import (
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
     PLATFORM_SCHEMA,
     STATE_CLASS_TOTAL_INCREASING,
     STATE_CLASS_MEASUREMENT,
@@ -30,6 +32,7 @@ from homeassistant.const import (
     CONF_NAME,
     ENERGY_KILO_WATT_HOUR,
     POWER_KILO_WATT,
+    TEMP_CELSIUS,
 
 )
 from homeassistant.helpers.update_coordinator import (
@@ -39,7 +42,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 
-
+from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
 
@@ -62,6 +65,7 @@ ATTR_CITY = "city"
 ATTR_ADDRESS = "address"
 ATTR_FEEDINDATE = "feedinDate"
 
+BATTERY_LEVELS = {"High": 80, "Medium": 50, "Low": 25, "Empty": 10}
 
 CONF_DEVICEID = "deviceID"
 
@@ -144,7 +148,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         now = datetime.now()
         
         methodRaw = "POST" 
-        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
 
         restRaw = RestData(hass, methodRaw, _ENDPOINT_RAW, None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
@@ -203,7 +207,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
+    async_add_entities([FoxESSBatTemp(coordinator, name, deviceID),FoxESSBatSoC(coordinator, name, deviceID),FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -591,3 +595,51 @@ class FoxESSSolarPower(CoordinatorEntity,SensorEntity):
             discharge = float(self.coordinator.data["raw"]["batDischargePower"])
 
         return loads + charge + feedIn - gridConsumption - discharge
+
+class FoxESSBatSoC(CoordinatorEntity,SensorEntity):
+
+    _attr_device_class = DEVICE_CLASS_BATTERY
+    _attr_native_unit_of_measurement = "%"
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Bat SoC")
+        self._attr_name = name+" - Bat SoC"
+        self._attr_unique_id=deviceID+"bat-soc"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        return  self.coordinator.data["raw"]["SoC"]
+
+    @property
+    def icon(self):
+        return icon_for_battery_level(battery_level=self.native_value, charging=None)
+
+class FoxESSBatTemp(CoordinatorEntity,SensorEntity):
+
+    _attr_device_class = DEVICE_CLASS_TEMPERATURE
+    _attr_native_unit_of_measurement = TEMP_CELSIUS
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Bat Temperature")
+        self._attr_name = name+" - Bat Temperature"
+        self._attr_unique_id=deviceID+"bat-temperature"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        return  self.coordinator.data["raw"]["batTemperature"]

@@ -45,6 +45,8 @@ Grid Consumption  |  kWh
 FeedIn  |  kWh  
 Bat Charge  |  kWh 
 Bat Discharge  |  kWh  
+Bat SoC | %
+Bat Temp | °C 
 
 ## 🤔 Troubleshooting 
 
