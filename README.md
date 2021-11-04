@@ -1,21 +1,10 @@
 ## [FoxESS](https://www.fox-ess.com/) and [Home Assistant](https://www.home-assistant.io/) integration  🏡 ☀️
 
-## ⚙️ Installation
+## ⚙️ Installation & ♻️ Update
 
-Go to to home-assistan `/config/configcustom_components` folder and fetch the component:
-
-```bash
-git clone https://github.com/macxq/foxess-ha.git
-```
+Use hacs.io to install and update by adding [custom repositories](https://hacs.xyz/docs/faq/custom_repositories)
 
 
-## ♻️ Update
-
-Go to to home-assistan `/config/configcustom_components/foxess` folder and update the component:
-
-```bash
-git pull
-```
 ## 💾 Configuration
 
 Edit your home-assistan `/configuration.yaml`  and add:
