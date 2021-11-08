@@ -1,5 +1,5 @@
 <h2 align="center">
-   <a href="https://www.fox-ess.com">FoxESS</a> and<a href="https://www.home-assistant.io">Home Assistant</a> integration  🏡 ☀
+   <a href="https://www.fox-ess.com">FoxESS</a> and<a href="https://www.home-assistant.io"> Home Assistant</a> integration  🏡 ☀
    </br></br>
    <img src="https://github.com/home-assistant/brands/raw/master/custom_integrations/foxess/logo.png" >
    </br>
