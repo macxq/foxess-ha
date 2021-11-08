@@ -1,4 +1,14 @@
-## [FoxESS](https://www.fox-ess.com/) and [Home Assistant](https://www.home-assistant.io/) integration  🏡 ☀️
+<h2 align="center">
+   <a href="https://www.fox-ess.com">FoxESS</a> and<a href="https://www.home-assistant.io">Home Assistant</a> integration  🏡 ☀
+   </br></br>
+   <img src="https://github.com/home-assistant/brands/raw/master/custom_integrations/foxess/logo.png" >
+   </br>
+   <a href="https://github.com/custom-components/hacs"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg"></a>
+   <a href="https://github.com/macxq/foxess-ha/actions/workflows/HACS.yaml/badge.svg?branch=main"><img src="https://github.com/macxq/foxess-ha/actions/workflows/HACS.yaml/badge.svg?branch=main"/></a>
+    <a href="https://github.com/macxq/foxess-ha/actions/workflows/hassfest.yaml/badge.svg"><img src="https://github.com/macxq/foxess-ha/actions/workflows/hassfest.yaml/badge.svg"/></a>
+    </br>
+</h2>
+
 
 ## ⚙️ Installation & ♻️ Update
 
