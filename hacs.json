@@ -1,6 +1,5 @@
 {
   "name": "FoxESS Cloud",
   "country": "NO",
-  "domains": ["energy", "sensor"],
-  "render_readme": "True"
+  "domains": ["energy", "sensor"]
 }
