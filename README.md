@@ -17,7 +17,11 @@ sensor:
     deviceID: foxesscloud_inverter_id
 ```
 
-`foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page 
+`foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page.
+⚠️ please make sure that this is exact value from inverter details page address between = and & character:
+
+![Screenshot 2021-11-08 at 08 42 05](https://user-images.githubusercontent.com/2965092/140761535-edb12226-b2b8-4f2b-87ce-11b67476a9e2.png)
+
 
 
 ## 📊 Provided entities
