@@ -169,7 +169,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         allData['raw'][variableName] =  None
 
         
-        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
+        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads","pv1Power","pv2Power","pv3Power","pv4Power"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
 
 
         restReport= RestData(hass, methodRaw, _ENDPOINT_REPORT, None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
@@ -207,7 +207,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSBatTemp(coordinator, name, deviceID),FoxESSBatSoC(coordinator, name, deviceID),FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
+    async_add_entities([FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSBatTemp(coordinator, name, deviceID),FoxESSBatSoC(coordinator, name, deviceID),FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -346,6 +346,99 @@ class FoxESSLoadPower(CoordinatorEntity,SensorEntity):
     @property
     def native_value(self) -> str | None:
         return  self.coordinator.data["raw"]["loadsPower"]  
+
+class FoxESSPV1Power(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - PV1 Power")
+        self._attr_name = name+" - PV1 Power"
+        self._attr_unique_id=deviceID+"pv1-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["raw"]["pv1Power"]  
+
+class FoxESSPV2Power(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - PV2 Power")
+        self._attr_name = name+" - PV2 Power"
+        self._attr_unique_id=deviceID+"pv2-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["raw"]["pv2Power"] 
+        
+class FoxESSPV3Power(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - PV3 Power")
+        self._attr_name = name+" - PV3 Power"
+        self._attr_unique_id=deviceID+"pv3-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["raw"]["pv3Power"]   
+
+class FoxESSPV4Power(CoordinatorEntity,SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - PV4 Power")
+        self._attr_name = name+" - PV4 Power"
+        self._attr_unique_id=deviceID+"pv4-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return  self.coordinator.data["raw"]["pv4Power"]  
+
 
 class FoxESSEnergyGenerated(CoordinatorEntity,SensorEntity):
 
