@@ -207,7 +207,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await coordinator.async_config_entry_first_refresh()
 
  
-    async_add_entities([FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV1Power(coordinator, name, deviceID),FoxESSBatTemp(coordinator, name, deviceID),FoxESSBatSoC(coordinator, name, deviceID),FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
+    async_add_entities([FoxESSPV1Power(coordinator, name, deviceID),FoxESSPV2Power(coordinator, name, deviceID),FoxESSPV3Power(coordinator, name, deviceID),FoxESSPV4Power(coordinator, name, deviceID),FoxESSBatTemp(coordinator, name, deviceID),FoxESSBatSoC(coordinator, name, deviceID),FoxESSSolarPower(coordinator, name, deviceID),FoxESSEnergySolar(coordinator, name, deviceID),FoxESSInverter(coordinator, name, deviceID),FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID),FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 class FoxESSPGenerationPower(CoordinatorEntity,SensorEntity):
@@ -368,7 +368,7 @@ class FoxESSPV1Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["raw"]["pv1Power"]  
+        return  self.coordinator.data["report"]["pv1Power"]  
 
 class FoxESSPV2Power(CoordinatorEntity,SensorEntity):
 
@@ -391,7 +391,7 @@ class FoxESSPV2Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["raw"]["pv2Power"] 
+        return  self.coordinator.data["report"]["pv2Power"] 
         
 class FoxESSPV3Power(CoordinatorEntity,SensorEntity):
 
@@ -414,7 +414,7 @@ class FoxESSPV3Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["raw"]["pv3Power"]   
+        return  self.coordinator.data["report"]["pv3Power"]   
 
 class FoxESSPV4Power(CoordinatorEntity,SensorEntity):
 
@@ -437,7 +437,7 @@ class FoxESSPV4Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["raw"]["pv4Power"]  
+        return  self.coordinator.data["report"]["pv4Power"]  
 
 
 class FoxESSEnergyGenerated(CoordinatorEntity,SensorEntity):
