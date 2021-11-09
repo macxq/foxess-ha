@@ -148,7 +148,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         now = datetime.now()
         
         methodRaw = "POST" 
-        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+        rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"day","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
 
         restRaw = RestData(hass, methodRaw, _ENDPOINT_RAW, None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
@@ -169,7 +169,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         allData['raw'][variableName] =  None
 
         
-        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads","pv1Power","pv2Power","pv3Power","pv4Power"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
+        reportData =  '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+'}}'
 
 
         restReport= RestData(hass, methodRaw, _ENDPOINT_REPORT, None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
@@ -368,7 +368,7 @@ class FoxESSPV1Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["report"]["pv1Power"]  
+        return  self.coordinator.data["raw"]["pv1Power"]  
 
 class FoxESSPV2Power(CoordinatorEntity,SensorEntity):
 
@@ -391,7 +391,7 @@ class FoxESSPV2Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["report"]["pv2Power"] 
+        return  self.coordinator.data["raw"]["pv2Power"] 
         
 class FoxESSPV3Power(CoordinatorEntity,SensorEntity):
 
@@ -414,7 +414,7 @@ class FoxESSPV3Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["report"]["pv3Power"]   
+        return  self.coordinator.data["raw"]["pv3Power"]   
 
 class FoxESSPV4Power(CoordinatorEntity,SensorEntity):
 
@@ -437,7 +437,7 @@ class FoxESSPV4Power(CoordinatorEntity,SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return  self.coordinator.data["report"]["pv4Power"]  
+        return  self.coordinator.data["raw"]["pv4Power"]  
 
 
 class FoxESSEnergyGenerated(CoordinatorEntity,SensorEntity):
