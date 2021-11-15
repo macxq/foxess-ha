@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_TEMPERATURE,
     PLATFORM_SCHEMA,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     STATE_CLASS_MEASUREMENT,
     SensorEntity,
@@ -627,7 +628,7 @@ class FoxESSInverter(CoordinatorEntity,SensorEntity):
 
 class FoxESSEnergySolar(CoordinatorEntity,SensorEntity):
 
-    _attr_state_class = STATE_CLASS_TOTAL_INCREASING
+    _attr_state_class = STATE_CLASS_TOTAL
     _attr_device_class = DEVICE_CLASS_ENERGY
     _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
 
