@@ -18,6 +18,7 @@ from homeassistant.components.sensor import (
     DEVICE_CLASS_TEMPERATURE,
     PLATFORM_SCHEMA,
     STATE_CLASS_TOTAL_INCREASING,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_MEASUREMENT,
     SensorEntity,
 )
