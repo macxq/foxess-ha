@@ -12,8 +12,11 @@
 
 ## ⚙️ Installation & ♻️ Update
 
-Use hacs.io to install and update by adding [custom repositories](https://hacs.xyz/docs/faq/custom_repositories)
+Use hacs.io to manage the installation and update process. Right now this integration is part of HACS by default - no more neeed to add it by custom repositories 🥳
 
+## ⌨️ Manual installation 
+
+TBD ...
 
 ## 💾 Configuration
 
