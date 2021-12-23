@@ -66,6 +66,9 @@ Bat Discharge  |  kWh
 Bat SoC | %
 Bat Temp | °C 
 
+
+💡 https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha
+
 ## 🤔 Troubleshooting 
 
 Increase log level in your `/configuration.yaml` by adding:
