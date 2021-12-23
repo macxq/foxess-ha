@@ -43,8 +43,8 @@ sensor:
 ## 📊 Provided entities
 
 HA Entity  | Measurement
-|---|---| on/off
-Inverter | 
+|---|---|
+Inverter |  on/off
 Generation Power  |  kW 
 Grid Consumption Power  |  kW  
 FeedIn Power  |  kW  
