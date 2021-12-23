@@ -43,15 +43,24 @@ sensor:
 ## 📊 Provided entities
 
 HA Entity  | Measurement
-|---|---|
+|---|---| on/off
+Inverter | 
 Generation Power  |  kW 
 Grid Consumption Power  |  kW  
 FeedIn Power  |  kW  
 Bat Discharge Power  |  kW   
 Bat Charge Power  |  kW  
+Solar Power | kW
+Load Power | kW
+PV1 Power | kW
+PV2 Power | kW
+PV3 Power | kW
+PV4 Power | kW
 Energy Generated  |  kWh 
 Grid Consumption  |  kWh 
 FeedIn  |  kWh  
+Solar  |  kWh 
+Load |  kWh 
 Bat Charge  |  kWh 
 Bat Discharge  |  kWh  
 Bat SoC | %
