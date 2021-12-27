@@ -67,7 +67,7 @@ Bat SoC | %
 Bat Temp | °C 
 
 
-💡 https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha
+💡 If you want to understand energy generation per string check out this wiki [article](https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha)
 
 ## 🤔 Troubleshooting 
 
