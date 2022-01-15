@@ -103,7 +103,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async def async_update_data():
         allData = {}
         token = await authAndgetToken(hass, username, hashedPassword)
-        headersData = {"token": token}
+        headersData = {"token": token, "User-Agent": "Chrome"}
 
         await getErnings(hass, headersData, allData, deviceID)
         await getAddresbook(hass, headersData, allData, deviceID)
@@ -139,7 +139,7 @@ async def authAndgetToken(hass, username, hashedPassword):
 
     payloadAuth = {"user": username, "password": hashedPassword}
     headersAuth = {"Content-Type": "application/json;charset=UTF-8",
-                   "Accept": "application/json, text/plain, */*", "lang": "en"}
+                   "Accept": "application/json, text/plain, */*", "lang": "en", "User-Agent": "Chrome"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
