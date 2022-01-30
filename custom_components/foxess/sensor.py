@@ -513,7 +513,11 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["earnings"]["result"]["today"]["generation"]
+        if self.coordinator.data["earnings"]["result"]["today"]["generation"] == 0:
+            energygenerated = None
+        else:
+            energygenerated = self.coordinator.data["earnings"]["result"]["today"]["generation"]
+        return energygenerated
 
 
 class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
@@ -537,7 +541,11 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["report"]["gridConsumption"]
+        if self.coordinator.data["report"]["gridConsumption"] == 0:
+            energygrid = None
+        else:
+            energygrid = self.coordinator.data["report"]["gridConsumption"]
+        return energygrid
 
 
 class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
@@ -561,7 +569,11 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["report"]["feedin"]
+        if self.coordinator.data["report"]["feedin"] == 0:
+            energyfeedin = None
+        else:
+            energyfeedin = self.coordinator.data["report"]["feedin"]
+        return energyfeedin
 
 
 class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
@@ -585,7 +597,11 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["report"]["chargeEnergyToTal"]
+        if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
+            energycharge = None
+        else:
+            energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
+        return energycharge
 
 
 class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
@@ -609,7 +625,11 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["report"]["dischargeEnergyToTal"]
+        if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
+            energydischarge = None
+        else:
+            energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
+        return energydischarge
 
 
 class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
@@ -633,7 +653,11 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["report"]["loads"]
+        if self.coordinator.data["report"]["loads"] == 0:
+            energyload = None
+        else:
+            energyload = self.coordinator.data["report"]["loads"]
+        return energyload
 
 
 class FoxESSInverter(CoordinatorEntity, SensorEntity):
