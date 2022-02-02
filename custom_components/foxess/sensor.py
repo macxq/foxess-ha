@@ -79,7 +79,7 @@ CONF_SYSTEM_ID = "system_id"
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = True
 
-SCAN_INTERVAL = timedelta(minutes=1)
+SCAN_INTERVAL = timedelta(minutes=5)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
