@@ -48,6 +48,13 @@ from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
 
+from random_user_agent.user_agent import UserAgent
+from random_user_agent.params import SoftwareName, OperatingSystem
+
+software_names = [SoftwareName.CHROME.value]
+operating_systems = [OperatingSystem.WINDOWS.value, OperatingSystem.LINUX.value]     
+user_agent_rotator = UserAgent(software_names=software_names, operating_systems=operating_systems, limit=100)
+
 _LOGGER = logging.getLogger(__name__)
 _ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
 _ENDPOINT_EARNINGS = "https://www.foxesscloud.com/c/v0/device/earnings?deviceID="
@@ -103,7 +110,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async def async_update_data():
         allData = {}
         token = await authAndgetToken(hass, username, hashedPassword)
-        headersData = {"token": token, "User-Agent": "Chrome 91"}
+        user_agent = user_agent_rotator.get_random_user_agent()
+        headersData = {"token": token, "User-Agent": user_agent}
 
         await getErnings(hass, headersData, allData, deviceID)
         await getAddresbook(hass, headersData, allData, deviceID)
@@ -138,8 +146,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 async def authAndgetToken(hass, username, hashedPassword):
 
     payloadAuth = {"user": username, "password": hashedPassword}
+    user_agent = user_agent_rotator.get_random_user_agent() 
     headersAuth = {"Content-Type": "application/json;charset=UTF-8",
-                   "Accept": "application/json, text/plain, */*", "lang": "en", "User-Agent": "Chrome 91"}
+                   "Accept": "application/json, text/plain, */*", "lang": "en", "User-Agent": user_agent}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
