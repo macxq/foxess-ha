@@ -4,7 +4,7 @@
   "documentation": "https://github.com/macxq/foxess-ha",
   "dependencies": ["rest"],
   "codeowners": [],
-  "requirements": [],
+  "requirements": ["random_user_agent"],
   "iot_class": "local_polling",
   "version": "v0.3",
   "issue_tracker":"https://github.com/macxq/foxess-ha/issues"
