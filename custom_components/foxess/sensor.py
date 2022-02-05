@@ -197,6 +197,12 @@ async def getErnings(hass, headersData, allData, deviceID):
 
 async def getAddresbook(hass, headersData, allData, deviceID):
 
+    # Don't bother pulling the address book again if we've already
+    # got data cached in memory. It doesn't change enough to be
+    # worth hitting the API each time.
+    if allData.get('addressbook', []):
+        return
+
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
                                deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restAddressBook.async_update()
