@@ -213,8 +213,8 @@ async def getAddresbook(hass, headersData, allData, deviceID):
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    reportData = '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
-        "%Y")+',"month":'+now.strftime("%_m")+'}}'
+    reportData = '{"deviceID":"'+deviceID+'","reportType":"date","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
+        "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
     restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
@@ -231,16 +231,20 @@ async def getReport(hass, headersData, allData, deviceID):
         for item in json.loads(restReport.data)['result']:
             variableName = item['variable']
             allData['report'][variableName] = None
+            # Daily reports break down the data hour by hour for the whole day
+            # even if we're only partially through, so sum the values together
+            # to get our daily total so far...
+            cumulative_total = 0
             for dataItem in item['data']:
-                if dataItem['index'] == int(now.strftime("%d")):
-                    allData['report'][variableName] = dataItem['value']
+                cumulative_total += dataItem['value']
+            allData['report'][variableName] = cumulative_total
 
 
 async def getRaw(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"day","beginDate":{"year":'+now.strftime(
-        "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"hour","beginDate":{"year":'+now.strftime(
+        "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
     restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,
                        None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
@@ -255,11 +259,11 @@ async def getRaw(hass, headersData, allData, deviceID):
         allData['raw'] = {}
         for item in json.loads(restRaw.data)['result']:
             variableName = item['variable']
-            lastElement = len(item["data"]) - 1
-            if lastElement > 0:
-                allData['raw'][variableName] = item["data"][lastElement]["value"]
+            # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
+            if item["data"]:
+                allData['raw'][variableName] = item["data"].pop().get("value",None)
             else:
-                allData['raw'][variableName] = None
+                _LOGGER.debug("No data elements returned for {}... previously recorded value [{}] will be used".format(variableName,allData['raw'][variableName]))
 
 
 class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
