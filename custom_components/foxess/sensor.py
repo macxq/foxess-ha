@@ -191,7 +191,7 @@ async def getErnings(hass, headersData, allData, deviceID, username, hashedPassw
     response = json.loads(restEarnings.data)
 
     if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41930:
+        if response["errno"] is not None and response["errno"] == 41809:
             global token
             _LOGGER.debug("Token has expierd, re-authenticating")
             token = await authAndgetToken(hass, username, hashedPassword)
