@@ -76,6 +76,7 @@ ATTR_COUNTRYCODE = "countryCode"
 ATTR_CITY = "city"
 ATTR_ADDRESS = "address"
 ATTR_FEEDINDATE = "feedinDate"
+ATTR_LASTCLOUDSYNC = "lastCloudSync"
 
 BATTERY_LEVELS = {"High": 80, "Medium": 50, "Low": 25, "Empty": 10}
 
@@ -109,10 +110,15 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
     async def async_update_data():
+        _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
 
-        _LOGGER.debug("🔋 Updating data")
+        allData = {
+            "report":{},
+            "earnings":{},
+            "raw":{},
+            "online":False
+        }
 
-        allData = {}
         global token
         if token is None:
             _LOGGER.debug("Token is empty, authenticating for the firts time")
@@ -121,10 +127,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         user_agent = user_agent_rotator.get_random_user_agent()
         headersData = {"token": token, "User-Agent": user_agent}
 
-        await getErnings(hass, headersData, allData, deviceID, username, hashedPassword)
-        await getAddresbook(hass, headersData, allData, deviceID)
-        await getRaw(hass, headersData, allData, deviceID)
-        await getReport(hass, headersData, allData, deviceID)
+        await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
+
+       
+
+        if int(allData["addressbook"]["result"]["status"]) == 1:
+            allData["online"] = True
+            await getErnings(hass, headersData, allData, deviceID)
+            await getRaw(hass, headersData, allData, deviceID)
+            await getReport(hass, headersData, allData, deviceID)
+        else:
+            _LOGGER.debug("Inverter is off-line, not fetching addictional data")
 
         _LOGGER.debug(allData)
 
@@ -183,7 +196,7 @@ async def authAndgetToken(hass, username, hashedPassword):
     return token
 
 
-async def getErnings(hass, headersData, allData, deviceID, username, hashedPassword):
+async def getErnings(hass, headersData, allData, deviceID):
     restEarnings = RestData(hass, METHOD_GET, _ENDPOINT_EARNINGS +
                             deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restEarnings.async_update()
@@ -191,13 +204,9 @@ async def getErnings(hass, headersData, allData, deviceID, username, hashedPassw
     response = json.loads(restEarnings.data)
 
     if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41809:
-            global token
-            _LOGGER.debug("Token has expierd, re-authenticating")
-            token = await authAndgetToken(hass, username, hashedPassword)
-        elif response["errno"] is not None and response["errno"] == 41930:
+        if response["errno"] is not None and response["errno"] == 41930:
             raise UpdateFailed(
-                f"Unable to get data from FoxESS - bad deviceID! - Read more how on thta topic: https://github.com/macxq/foxess-ha#-configuration  {restEarnings.data}")
+                f"Unable to get data from FoxESS - bad deviceID! - Read more on that topic: https://github.com/macxq/foxess-ha#-configuration  {restEarnings.data}")
         else:
             raise UpdateFailed(
                 f"Unable to get data from FoxESS: {restEarnings.data}")
@@ -207,8 +216,7 @@ async def getErnings(hass, headersData, allData, deviceID, username, hashedPassw
         allData['earnings'] = json.loads(restEarnings.data)
 
 
-async def getAddresbook(hass, headersData, allData, deviceID):
-
+async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
                                deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restAddressBook.async_update()
@@ -217,9 +225,18 @@ async def getAddresbook(hass, headersData, allData, deviceID):
         _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
         return False
     else:
-        _LOGGER.debug(
-            "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
-        allData['addressbook'] = json.loads(restAddressBook.data)
+        response = json.loads(restAddressBook.data)
+        if response["errno"] is not None and response["errno"] == 41809:
+                if tokenRefreshRetrys > 2:
+                    raise UpdateFailed(f"Unable to refresh token in {tokenRefreshRetrys} retries")
+                global token
+                _LOGGER.debug(f"Token has expierd, re-authenticating {tokenRefreshRetrys}")
+                token = await authAndgetToken(hass, username, hashedPassword)
+                getErnings(hass, headersData, allData, deviceID, username, hashedPassword,tokenRefreshRetrys+1)
+        else:
+            _LOGGER.debug(
+                "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
+            allData['addressbook'] = response
 
 
 async def getReport(hass, headersData, allData, deviceID):
@@ -240,7 +257,7 @@ async def getReport(hass, headersData, allData, deviceID):
     else:
         _LOGGER.debug("FoxESS Report data fetched correcly " +
                       restReport.data[:150] + " ... ")
-        allData['report'] = {}
+
         for item in json.loads(restReport.data)['result']:
             variableName = item['variable']
             allData['report'][variableName] = None
@@ -297,7 +314,9 @@ class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["earnings"]["result"]["power"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["earnings"]["result"]["power"]
+        return None 
 
 
 class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
@@ -321,7 +340,9 @@ class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["gridConsumptionPower"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["gridConsumptionPower"]
+        return None
 
 
 class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
@@ -345,8 +366,10 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["feedinPower"]
-
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["feedinPower"]
+        return None 
+        
 
 class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
@@ -369,7 +392,9 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["batDischargePower"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["batDischargePower"]
+        return None 
 
 
 class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
@@ -393,7 +418,10 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["batChargePower"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["batChargePower"]
+        return None 
+        
 
 
 class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
@@ -417,7 +445,9 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["loadsPower"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["loadsPower"]
+        return None 
 
 
 class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
@@ -441,7 +471,9 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["pv1Power"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["pv1Power"]
+        return None 
 
 
 class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
@@ -465,8 +497,10 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["pv2Power"]
-
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["pv2Power"]
+        return None 
+        
 
 class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
@@ -489,7 +523,9 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["pv3Power"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["pv3Power"]
+        return None 
 
 
 class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
@@ -513,7 +549,9 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data["raw"]["pv4Power"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["pv4Power"]
+        return None 
 
 
 class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
@@ -537,11 +575,13 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["earnings"]["result"]["today"]["generation"] == 0:
-            energygenerated = None
-        else:
-            energygenerated = self.coordinator.data["earnings"]["result"]["today"]["generation"]
-        return energygenerated
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["earnings"]["result"]["today"]["generation"] == 0:
+                energygenerated = None
+            else:
+                energygenerated = self.coordinator.data["earnings"]["result"]["today"]["generation"]
+            return energygenerated
+        return None
 
 
 class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
@@ -565,11 +605,13 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["report"]["gridConsumption"] == 0:
-            energygrid = None
-        else:
-            energygrid = self.coordinator.data["report"]["gridConsumption"]
-        return energygrid
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["report"]["gridConsumption"] == 0:
+                energygrid = None
+            else:
+                energygrid = self.coordinator.data["report"]["gridConsumption"]
+            return energygrid
+        return None
 
 
 class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
@@ -593,11 +635,13 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["report"]["feedin"] == 0:
-            energyfeedin = None
-        else:
-            energyfeedin = self.coordinator.data["report"]["feedin"]
-        return energyfeedin
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["report"]["feedin"] == 0:
+                energyfeedin = None
+            else:
+                energyfeedin = self.coordinator.data["report"]["feedin"]
+            return energyfeedin
+        return None
 
 
 class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
@@ -621,11 +665,13 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
-            energycharge = None
-        else:
-            energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
-        return energycharge
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
+                energycharge = None
+            else:
+                energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
+            return energycharge
+        return None
 
 
 class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
@@ -649,11 +695,13 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
-            energydischarge = None
-        else:
-            energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
-        return energydischarge
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
+                energydischarge = None
+            else:
+                energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
+            return energydischarge
+        return None
 
 
 class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
@@ -677,11 +725,13 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["report"]["loads"] == 0:
-            energyload = None
-        else:
-            energyload = self.coordinator.data["report"]["loads"]
-        return energyload
+        if self.coordinator.data["online"]:
+            if self.coordinator.data["report"]["loads"] == 0:
+                energyload = None
+            else:
+                energyload = self.coordinator.data["report"]["loads"]
+            return energyload
+        return None
 
 
 class FoxESSInverter(CoordinatorEntity, SensorEntity):
@@ -706,7 +756,8 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
                 ATTR_COUNTRYCODE,
                 ATTR_CITY,
                 ATTR_ADDRESS,
-                ATTR_FEEDINDATE
+                ATTR_FEEDINDATE,
+                ATTR_LASTCLOUDSYNC
             ],
         )
 
@@ -728,7 +779,8 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
             ATTR_COUNTRYCODE: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRYCODE],
             ATTR_CITY: self.coordinator.data["addressbook"]["result"][ATTR_CITY],
             ATTR_ADDRESS: self.coordinator.data["addressbook"]["result"][ATTR_ADDRESS],
-            ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE]
+            ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE],
+            ATTR_LASTCLOUDSYNC: datetime.now()
         }
 
 
@@ -753,15 +805,17 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        loads = float(self.coordinator.data["report"]["loads"])
-        charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
-        feedIn = float(self.coordinator.data["report"]["feedin"])
-        gridConsumption = float(
-            self.coordinator.data["report"]["gridConsumption"])
-        discharge = float(
-            self.coordinator.data["report"]["dischargeEnergyToTal"])
+        if self.coordinator.data["online"]:
+            loads = float(self.coordinator.data["report"]["loads"])
+            charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
+            feedIn = float(self.coordinator.data["report"]["feedin"])
+            gridConsumption = float(
+                self.coordinator.data["report"]["gridConsumption"])
+            discharge = float(
+                self.coordinator.data["report"]["dischargeEnergyToTal"])
 
-        return loads + charge + feedIn - gridConsumption - discharge
+            return loads + charge + feedIn - gridConsumption - discharge
+        return None
 
 
 class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
@@ -785,21 +839,23 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        loads = float(self.coordinator.data["raw"]["loadsPower"])
-        if self.coordinator.data["raw"]["batChargePower"] is None:
-            charge = 0
-        else:
-            charge = float(self.coordinator.data["raw"]["batChargePower"])
-        feedIn = float(self.coordinator.data["raw"]["feedinPower"])
-        gridConsumption = float(
-            self.coordinator.data["raw"]["gridConsumptionPower"])
-        if self.coordinator.data["raw"]["batDischargePower"] is None:
-            discharge = 0
-        else:
-            discharge = float(
-                self.coordinator.data["raw"]["batDischargePower"])
+        if self.coordinator.data["online"]:
+            loads = float(self.coordinator.data["raw"]["loadsPower"])
+            if self.coordinator.data["raw"]["batChargePower"] is None:
+                charge = 0
+            else:
+                charge = float(self.coordinator.data["raw"]["batChargePower"])
+            feedIn = float(self.coordinator.data["raw"]["feedinPower"])
+            gridConsumption = float(
+                self.coordinator.data["raw"]["gridConsumptionPower"])
+            if self.coordinator.data["raw"]["batDischargePower"] is None:
+                discharge = 0
+            else:
+                discharge = float(
+                    self.coordinator.data["raw"]["batDischargePower"])
 
-        return loads + charge + feedIn - gridConsumption - discharge
+            return loads + charge + feedIn - gridConsumption - discharge
+        return None
 
 
 class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
@@ -822,7 +878,9 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data["raw"]["SoC"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["SoC"]
+        return  None
 
     @property
     def icon(self):
@@ -849,4 +907,6 @@ class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data["raw"]["batTemperature"]
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["batTemperature"]
+        return None
