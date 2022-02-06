@@ -97,6 +97,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     }
 )
 
+token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
@@ -108,12 +109,19 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
     async def async_update_data():
+
+        _LOGGER.debug("🔋 Updating data")
+
         allData = {}
-        token = await authAndgetToken(hass, username, hashedPassword)
+        global token
+        if token is None:
+            _LOGGER.debug("Token is empty, authenticating for the firts time")
+            token = await authAndgetToken(hass, username, hashedPassword)
+
         user_agent = user_agent_rotator.get_random_user_agent()
         headersData = {"token": token, "User-Agent": user_agent}
 
-        await getErnings(hass, headersData, allData, deviceID)
+        await getErnings(hass, headersData, allData, deviceID, username, hashedPassword)
         await getAddresbook(hass, headersData, allData, deviceID)
         await getRaw(hass, headersData, allData, deviceID)
         await getReport(hass, headersData, allData, deviceID)
@@ -175,7 +183,7 @@ async def authAndgetToken(hass, username, hashedPassword):
     return token
 
 
-async def getErnings(hass, headersData, allData, deviceID):
+async def getErnings(hass, headersData, allData, deviceID, username, hashedPassword):
     restEarnings = RestData(hass, METHOD_GET, _ENDPOINT_EARNINGS +
                             deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restEarnings.async_update()
@@ -184,6 +192,10 @@ async def getErnings(hass, headersData, allData, deviceID):
 
     if response["result"] is None:
         if response["errno"] is not None and response["errno"] == 41930:
+            global token
+            _LOGGER.debug("Token has expierd, re-authenticating")
+            token = await authAndgetToken(hass, username, hashedPassword)
+        elif response["errno"] is not None and response["errno"] == 41930:
             raise UpdateFailed(
                 f"Unable to get data from FoxESS - bad deviceID! - Read more how on thta topic: https://github.com/macxq/foxess-ha#-configuration  {restEarnings.data}")
         else:
@@ -213,7 +225,8 @@ async def getAddresbook(hass, headersData, allData, deviceID):
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    reportData = '{"deviceID":"'+deviceID+'","reportType":"date","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
+
+    reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
     restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,
@@ -262,9 +275,7 @@ async def getRaw(hass, headersData, allData, deviceID):
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
             if item["data"]:
                 allData['raw'][variableName] = item["data"].pop().get("value",None)
-            else:
-                _LOGGER.debug("No data elements returned for {}... previously recorded value [{}] will be used".format(variableName,allData['raw'][variableName]))
-
+        
 
 class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
