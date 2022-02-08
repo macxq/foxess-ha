@@ -57,7 +57,6 @@ user_agent_rotator = UserAgent(software_names=software_names, operating_systems=
 
 _LOGGER = logging.getLogger(__name__)
 _ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
-_ENDPOINT_EARNINGS = "https://www.foxesscloud.com/c/v0/device/earnings?deviceID="
 _ENDPOINT_RAW = "https://www.foxesscloud.com/c/v0/device/history/raw"
 _ENDPOINT_REPORT = "https://www.foxesscloud.com/c/v0/device/history/report"
 _ENDPOINT_ADDRESSBOOK = "https://www.foxesscloud.com/c/v0/device/addressbook?deviceID="
@@ -114,7 +113,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
         allData = {
             "report":{},
-            "earnings":{},
             "raw":{},
             "online":False
         }
@@ -133,7 +131,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
         if int(allData["addressbook"]["result"]["status"]) == 1:
             allData["online"] = True
-            await getErnings(hass, headersData, allData, deviceID)
             await getRaw(hass, headersData, allData, deviceID)
             await getReport(hass, headersData, allData, deviceID)
         else:
@@ -194,26 +191,6 @@ async def authAndgetToken(hass, username, hashedPassword):
 
     token = response["result"]["token"]
     return token
-
-
-async def getErnings(hass, headersData, allData, deviceID):
-    restEarnings = RestData(hass, METHOD_GET, _ENDPOINT_EARNINGS +
-                            deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
-    await restEarnings.async_update()
-
-    response = json.loads(restEarnings.data)
-
-    if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41930:
-            raise UpdateFailed(
-                f"Unable to get data from FoxESS - bad deviceID! - Read more on that topic: https://github.com/macxq/foxess-ha#-configuration  {restEarnings.data}")
-        else:
-            raise UpdateFailed(
-                f"Unable to get data from FoxESS: {restEarnings.data}")
-    else:
-        _LOGGER.debug(
-            "FoxESS Earnings data fetched correcly "+restEarnings.data)
-        allData['earnings'] = json.loads(restEarnings.data)
 
 
 async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
@@ -315,7 +292,7 @@ class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            return self.coordinator.data["earnings"]["result"]["power"]
+            return self.coordinator.data["raw"]["generationPower"]
         return None 
 
 
@@ -576,10 +553,10 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["earnings"]["result"]["today"]["generation"] == 0:
+            if self.coordinator.data["report"]["generation"] == 0:
                 energygenerated = None
             else:
-                energygenerated = self.coordinator.data["earnings"]["result"]["today"]["generation"]
+                energygenerated = self.coordinator.data["report"]["generation"]
             return energygenerated
         return None
 
