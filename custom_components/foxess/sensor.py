@@ -123,7 +123,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             token = await authAndgetToken(hass, username, hashedPassword)
 
         user_agent = user_agent_rotator.get_random_user_agent()
-        headersData = {"token": token, "User-Agent": user_agent}
+        headersData = {"token": token, 
+                       "User-Agent": user_agent,
+                       "Accept": "application/json, text/plain, */*",
+                       "lang": "en",
+                       "sec-ch-ua-platform": "macOS",
+                       "Sec-Fetch-Site": "same-origin",
+                       "Sec-Fetch-Mode": "cors",
+                       "Sec-Fetch-Dest": "empty",
+                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                       "Connection": "keep-alive",
+                       "X-Requested-With": "XMLHttpRequest"}
 
         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
 
@@ -165,8 +176,17 @@ async def authAndgetToken(hass, username, hashedPassword):
 
     payloadAuth = {"user": username, "password": hashedPassword}
     user_agent = user_agent_rotator.get_random_user_agent() 
-    headersAuth = {"Content-Type": "application/json;charset=UTF-8",
-                   "Accept": "application/json, text/plain, */*", "lang": "en", "User-Agent": user_agent}
+    headersAuth = {"User-Agent": user_agent,
+                   "Accept": "application/json, text/plain, */*",
+                   "lang": "en",
+                   "sec-ch-ua-platform": "macOS",
+                   "Sec-Fetch-Site": "same-origin",
+                   "Sec-Fetch-Mode": "cors",
+                   "Sec-Fetch-Dest": "empty",
+                   "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                   "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                   "Connection": "keep-alive",
+                    "X-Requested-With": "XMLHttpRequest"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
