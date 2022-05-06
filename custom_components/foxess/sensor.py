@@ -169,7 +169,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         return False
 
     async_add_entities([FoxESSPV1Power(coordinator, name, deviceID), FoxESSPV2Power(coordinator, name, deviceID), FoxESSPV3Power(coordinator, name, deviceID), FoxESSPV4Power(coordinator, name, deviceID), FoxESSBatTemp(coordinator, name, deviceID), FoxESSBatSoC(coordinator, name, deviceID), FoxESSSolarPower(coordinator, name, deviceID), FoxESSEnergySolar(coordinator, name, deviceID), FoxESSInverter(coordinator, name, deviceID), FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(
-        coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID), FoxESSEnergyLoad(coordinator, name, deviceID)])
+        coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID), FoxESSEnergyLoad(coordinator, name, deviceID), FoxESSEnergyBatMinSoC(coordinator, name, deviceID)])
 
 
 async def authAndgetToken(hass, username, hashedPassword):
@@ -289,7 +289,28 @@ async def getRaw(hass, headersData, allData, deviceID):
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
             if item["data"]:
                 allData['raw'][variableName] = item["data"].pop().get("value",None)
-        
+
+class FoxESSEnergyBatMinSoC(CoordinatorEntity, SensorEntity):
+
+    _attr_device_class = DEVICE_CLASS_BATTERY
+    _attr_native_unit_of_measurement = "%"
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Bat Min SoC")
+        self._attr_name = name+" - Bat Min SoC"
+        self._attr_unique_id = deviceID+"bat-min-son"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return 30     
 
 class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
@@ -419,7 +440,6 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
             return self.coordinator.data["raw"]["batChargePower"]
         return None 
         
-
 
 class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
 
