@@ -84,23 +84,39 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     name = hass.data[DOMAIN][ATT_NAME]
     deviceID = hass.data[DOMAIN][ATT_DEVICEID]
 
-    async_add_entities([FoxESSPV1Power(coordinator, name, deviceID), FoxESSPV2Power(coordinator, name, deviceID), FoxESSPV3Power(coordinator, name, deviceID), FoxESSPV4Power(coordinator, name, deviceID), FoxESSBatTemp(coordinator, name, deviceID), FoxESSBatSoC(coordinator, name, deviceID), FoxESSSolarPower(coordinator, name, deviceID), FoxESSEnergySolar(coordinator, name, deviceID), FoxESSInverter(coordinator, name, deviceID), FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(
-        coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID), FoxESSEnergyLoad(coordinator, name, deviceID)])
+    async_add_entities(
+        [FoxESSPV1Power(coordinator, name, deviceID),
+        FoxESSPV2Power(coordinator, name, deviceID),
+        FoxESSPV3Power(coordinator, name, deviceID), 
+        FoxESSPV4Power(coordinator, name, deviceID), 
+        FoxESSBatTemp(coordinator, name, deviceID),
+        FoxESSBatSoC(coordinator, name, deviceID),
+        FoxESSSolarPower(coordinator, name, deviceID),
+        FoxESSEnergySolar(coordinator, name, deviceID),
+        FoxESSInverter(coordinator, name, deviceID),
+        FoxESSPGenerationPower(coordinator, name, deviceID), 
+        FoxESSGridConsumptionPower(coordinator, name, deviceID), 
+        FoxESSFeedInPower(coordinator, name, deviceID), 
+        FoxESSBatDischargePower(coordinator, name, deviceID), 
+        FoxESSBatChargePower(coordinator, name, deviceID), 
+        FoxESSLoadPower(coordinator, name, deviceID), 
+        FoxESSEnergyGenerated(coordinator, name, deviceID), 
+        FoxESSEnergyGridConsumption(coordinator, name, deviceID), 
+        FoxESSEnergyFeedin(coordinator, name, deviceID), 
+        FoxESSEnergyBatCharge(coordinator, name, deviceID), 
+        FoxESSEnergyBatDischarge(coordinator, name, deviceID), 
+        FoxESSEnergyLoad(coordinator, name, deviceID)])
 
-
-
-
-        
-class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
+class FoxESSPGenericPowerEntity(CoordinatorEntity, SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
     _attr_device_class = DEVICE_CLASS_POWER
     _attr_native_unit_of_measurement = POWER_KILO_WATT
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, attribute):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initing Entity - Generation Power")
-        self._attr_name = name+" - Generation Power"
-        self._attr_unique_id = deviceID+"-generation-power"
+        _LOGGER.debug("Initing Sensor - %s", attribute)
+        self._attr_name = "{} - {}".format(name, attribute)
+        self._attr_unique_id = "{}-{}".format(deviceID,to_lower_kebab_case(attribute))
         self.status = namedtuple(
             "status",
             [
@@ -109,12 +125,72 @@ class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
             ],
         )
 
+    def getPoweData(self) -> str | None:
+        return None 
+    
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            return self.coordinator.data["raw"]["generationPower"]
+        if self.coordinator.data["inverterStatus"] != 0:
+            return self.getPoweData()
         return None 
 
+class FoxESSEnergyGenericEntity(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class = STATE_CLASS_TOTAL_INCREASING
+    _attr_device_class = DEVICE_CLASS_ENERGY
+    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+
+    energy_data = None
+
+    def __init__(self, coordinator, name, deviceID,attribute,unique_id=None) :
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Sensor - %s", attribute)
+        self._attr_name = "{} - {}".format(name, attribute)
+        self._attr_unique_id = unique_id if unique_id!=None else "{}-{}".format(deviceID,to_lower_kebab_case(attribute))
+
+        _LOGGER.debug("_attr_unique_id %s",  self._attr_unique_id)
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ]
+        )
+
+    def getEnergyData(self) -> str | None:
+        return None 
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data["inverterStatus"] != 0:
+            if self.energy_data is None or self.coordinator.data["report"]["generation"] >= self.energy_data:
+                self.energy_data = self.getEnergyData()
+            return self.energy_data
+        return None
+
+    
+
+
+class FoxESSEnergyGenerated(FoxESSEnergyGenericEntity):
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator, name, deviceID,"Energy Generated","{}energy-generated".format(deviceID))
+        
+    def getEnergyData(self) -> str | None:
+        return self.coordinator.data["report"]["generation"]
+
+
+        
+class FoxESSPGenerationPower(FoxESSPGenericPowerEntity):
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator, name, deviceID,"Generation Power")
+
+
+    def getPoweData(self) -> str | None:
+        return self.coordinator.data["raw"]["generationPower"]
+
+
+#############
 
 class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
 
@@ -137,7 +213,7 @@ class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["gridConsumptionPower"]
         return None
 
@@ -163,7 +239,7 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["feedinPower"]
         return None 
         
@@ -189,7 +265,7 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["batDischargePower"]
         return None 
 
@@ -215,7 +291,7 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["batChargePower"]
         return None 
         
@@ -241,7 +317,7 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["loadsPower"]
         return None 
 
@@ -267,7 +343,7 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["pv1Power"]
         return None 
 
@@ -293,7 +369,7 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["pv2Power"]
         return None 
         
@@ -319,7 +395,7 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["pv3Power"]
         return None 
 
@@ -345,39 +421,12 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["pv4Power"]
         return None 
 
 
-class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
-    _attr_state_class = STATE_CLASS_TOTAL_INCREASING
-    _attr_device_class = DEVICE_CLASS_ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initing Entity - Energy Generated")
-        self._attr_name = name+" - Energy Generated"
-        self._attr_unique_id = deviceID+"energy-generated"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["generation"] == 0:
-                energygenerated = None
-            else:
-                energygenerated = self.coordinator.data["report"]["generation"]
-            return energygenerated
-        return None
 
 
 class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
@@ -401,7 +450,7 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             if self.coordinator.data["report"]["gridConsumption"] == 0:
                 energygrid = None
             else:
@@ -431,7 +480,7 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             if self.coordinator.data["report"]["feedin"] == 0:
                 energyfeedin = None
             else:
@@ -461,7 +510,7 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
                 energycharge = None
             else:
@@ -491,7 +540,7 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
                 energydischarge = None
             else:
@@ -521,7 +570,7 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             if self.coordinator.data["report"]["loads"] == 0:
                 energyload = None
             else:
@@ -559,10 +608,19 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if int(self.coordinator.data["addressbook"]["result"]["status"]) == 1:
+        if self.coordinator.data["inverterStatus"] == 1:
             return "on-line"
+        elif self.coordinator.data["inverterStatus"] == 2:
+            return "alarm"
         else:
             return "off-line"
+
+    @property
+    def icon(self):
+        if self.coordinator.data["inverterStatus"] == 2:
+            return "mdi:alert-outline"
+        else:
+            return "mdi:solar-power"
 
     @property
     def extra_state_attributes(self):
@@ -601,7 +659,7 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             loads = float(self.coordinator.data["report"]["loads"])
             charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
             feedIn = float(self.coordinator.data["report"]["feedin"])
@@ -635,7 +693,7 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             loads = float(self.coordinator.data["raw"]["loadsPower"])
             if self.coordinator.data["raw"]["batChargePower"] is None:
                 charge = 0
@@ -674,7 +732,7 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["SoC"]
         return  None
 
@@ -703,6 +761,9 @@ class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["inverterStatus"] != 0:
             return self.coordinator.data["raw"]["batTemperature"]
         return None
+
+def to_lower_kebab_case(text):
+    return text.lower().replace(" ","-")

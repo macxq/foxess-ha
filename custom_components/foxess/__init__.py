@@ -122,10 +122,10 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
 
-       
-
-        if int(allData["addressbook"]["result"]["status"]) == 1:
-            allData["online"] = True
+        status = int(allData["addressbook"]["result"]["status"]) 
+        allData["inverterStatus"] = status
+        
+        if status!= 0:
             await getRaw(hass, headersData, allData, deviceID)
             await getReport(hass, headersData, allData, deviceID)
         else:
