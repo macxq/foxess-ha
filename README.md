@@ -24,11 +24,10 @@ Copy content of `custom_components` folder into your HA `/config/custom_componen
 Edit your home-assistan `/configuration.yaml`  and add:
 
 ```yaml
-sensor:
-  - platform: foxess
-    username: foxesscloud_username
-    password: foxesscloud_password
-    deviceID: foxesscloud_inverter_id
+foxess:
+   username: foxesscloud_username
+   password: foxesscloud_password
+   deviceID: foxesscloud_inverter_id
 ```
 
 #### Auxiliary notes:
