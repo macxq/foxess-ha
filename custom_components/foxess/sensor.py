@@ -74,32 +74,34 @@ CONF_SYSTEM_ID = "system_id"
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     _LOGGER.debug("Starting FoxESS Clound integration -  Sensor Platform")
 
-    coordinator = hass.data[DOMAIN][ATT_COORDINATOR]
-    name = hass.data[DOMAIN][ATT_NAME]
-    deviceID = hass.data[DOMAIN][ATT_DEVICEID]
+    
+    for cofig in  hass.data[DOMAIN]:
+        coordinator =cofig[ATT_COORDINATOR]
+        name = cofig[ATT_NAME]
+        deviceID = cofig[ATT_DEVICEID]
 
-    async_add_entities(
-        [FoxESSPV1Power(coordinator, name, deviceID),
-        FoxESSPV2Power(coordinator, name, deviceID),
-        FoxESSPV3Power(coordinator, name, deviceID), 
-        FoxESSPV4Power(coordinator, name, deviceID), 
-        FoxESSBatTemp(coordinator, name, deviceID),
-        FoxESSBatSoC(coordinator, name, deviceID),
-        FoxESSSolarPower(coordinator, name, deviceID),
-        FoxESSEnergySolar(coordinator, name, deviceID),
-        FoxESSInverter(coordinator, name, deviceID),
-        FoxESSPGenerationPower(coordinator, name, deviceID), 
-        FoxESSGridConsumptionPower(coordinator, name, deviceID), 
-        FoxESSFeedInPower(coordinator, name, deviceID), 
-        FoxESSBatDischargePower(coordinator, name, deviceID), 
-        FoxESSBatChargePower(coordinator, name, deviceID), 
-        FoxESSLoadPower(coordinator, name, deviceID), 
-        FoxESSEnergyGenerated(coordinator, name, deviceID), 
-        FoxESSEnergyGridConsumption(coordinator, name, deviceID), 
-        FoxESSEnergyFeedin(coordinator, name, deviceID), 
-        FoxESSEnergyBatCharge(coordinator, name, deviceID), 
-        FoxESSEnergyBatDischarge(coordinator, name, deviceID), 
-        FoxESSEnergyLoad(coordinator, name, deviceID)])
+        async_add_entities(
+            [FoxESSPV1Power(coordinator, name, deviceID),
+            FoxESSPV2Power(coordinator, name, deviceID),
+            FoxESSPV3Power(coordinator, name, deviceID), 
+            FoxESSPV4Power(coordinator, name, deviceID), 
+            FoxESSBatTemp(coordinator, name, deviceID),
+            FoxESSBatSoC(coordinator, name, deviceID),
+            FoxESSSolarPower(coordinator, name, deviceID),
+            FoxESSEnergySolar(coordinator, name, deviceID),
+            FoxESSInverter(coordinator, name, deviceID),
+            FoxESSPGenerationPower(coordinator, name, deviceID), 
+            FoxESSGridConsumptionPower(coordinator, name, deviceID), 
+            FoxESSFeedInPower(coordinator, name, deviceID), 
+            FoxESSBatDischargePower(coordinator, name, deviceID), 
+            FoxESSBatChargePower(coordinator, name, deviceID), 
+            FoxESSLoadPower(coordinator, name, deviceID), 
+            FoxESSEnergyGenerated(coordinator, name, deviceID), 
+            FoxESSEnergyGridConsumption(coordinator, name, deviceID), 
+            FoxESSEnergyFeedin(coordinator, name, deviceID), 
+            FoxESSEnergyBatCharge(coordinator, name, deviceID), 
+            FoxESSEnergyBatDischarge(coordinator, name, deviceID), 
+            FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 class FoxESSPGenericPowerEntity(CoordinatorEntity, SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
@@ -156,7 +158,7 @@ class FoxESSEnergyGenericEntity(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["inverterStatus"] != 0:
-            if (self.getEnergyData() > 0 and (self.energy_data is None or self.coordinator.data["report"]["generation"] >= self.energy_data)) or self.energy_data_date() != date.today() :
+            if (self.getEnergyData() > 0 and (self.energy_data is None or self.coordinator.data["report"]["generation"] >= self.energy_data)) or self.energy_data_date != date.today() :
                 self.energy_data = self.getEnergyData()
                 self.energy_data_date = date.today()
             return self.energy_data

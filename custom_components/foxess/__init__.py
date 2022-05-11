@@ -87,6 +87,8 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
     _LOGGER.debug(config)
 
+    hass.data[DOMAIN]  = []
+
     for entry in config:
         name = entry[CONF_NAME]
         username = entry[CONF_USERNAME]
@@ -156,13 +158,13 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
             return False
 
 
-        hass.data[DOMAIN] = { 
+        hass.data[DOMAIN].append({ 
             ATT_COORDINATOR: coordinator,
             ATT_NAME: name,
             ATT_DEVICEID: deviceID
-        }
+        })
 
-        for platform in PLATFORMS:
+    for platform in PLATFORMS:
         await discovery.async_load_platform(hass, platform, DOMAIN, "", config)
 
     # Return boolean to indicate that initialization was successfully.
