@@ -65,12 +65,12 @@ _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=5)
 
 CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
+    DOMAIN: vol.Schema([{
         vol.Required(CONF_USERNAME): cv.string,
         vol.Required(CONF_PASSWORD): cv.string,
         vol.Required(CONF_DEVICEID): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
-         }, extra=vol.ALLOW_EXTRA),
+         }], extra=vol.ALLOW_EXTRA),
 }, extra=vol.ALLOW_EXTRA)
 
 
@@ -85,83 +85,85 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
     config =  hass_config[DOMAIN]
 
-    name = config[CONF_NAME]
-    username = config[CONF_USERNAME]
-    password = config[CONF_PASSWORD]
-    deviceID = config[CONF_DEVICEID]
+    _LOGGER.debug(config)
 
-    hashedPassword = hashlib.md5(password.encode()).hexdigest()
+    for entry in config:
+        name = entry[CONF_NAME]
+        username = entry[CONF_USERNAME]
+        password = entry[CONF_PASSWORD]
+        deviceID = entry[CONF_DEVICEID]
 
-    async def async_update_data():
-        _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
+        hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
-        allData = {
-            "report":{},
-            "raw":{},
-            "online":False
+        async def async_update_data():
+            _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
+
+            allData = {
+                "report":{},
+                "raw":{},
+                "online":False
+            }
+
+            global token
+            if token is None:
+                _LOGGER.debug("Token is empty, authenticating for the firts time")
+                token = await authAndgetToken(hass, username, hashedPassword)
+
+            user_agent = user_agent_rotator.get_random_user_agent()
+            headersData = {"token": token, 
+                        "User-Agent": user_agent,
+                        "Accept": "application/json, text/plain, */*",
+                        "lang": "en",
+                        "sec-ch-ua-platform": "macOS",
+                        "Sec-Fetch-Site": "same-origin",
+                        "Sec-Fetch-Mode": "cors",
+                        "Sec-Fetch-Dest": "empty",
+                        "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                        "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                        "Connection": "keep-alive",
+                        "X-Requested-With": "XMLHttpRequest"}
+
+            await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
+
+            status = int(allData["addressbook"]["result"]["status"]) 
+            allData["inverterStatus"] = status
+            
+            if status!= 0:
+                await getRaw(hass, headersData, allData, deviceID)
+                await getReport(hass, headersData, allData, deviceID)
+            else:
+                _LOGGER.debug("Inverter is off-line, not fetching addictional data")
+
+            _LOGGER.debug(allData)
+
+            return allData
+
+        coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            # Name of the data. For logging purposes.
+            name=DEFAULT_NAME,
+            update_method=async_update_data,
+            # Polling interval. Will only be polled if there are subscribers.
+            update_interval=SCAN_INTERVAL,
+        )
+
+        await coordinator.async_refresh()
+
+        if not coordinator.last_update_success:
+            _LOGGER.error(
+                "FoxESS Cloud initializaction failed, fix error and restar ha")
+            return False
+
+
+        hass.data[DOMAIN] = { 
+            ATT_COORDINATOR: coordinator,
+            ATT_NAME: name,
+            ATT_DEVICEID: deviceID
         }
 
-        global token
-        if token is None:
-            _LOGGER.debug("Token is empty, authenticating for the firts time")
-            token = await authAndgetToken(hass, username, hashedPassword)
-
-        user_agent = user_agent_rotator.get_random_user_agent()
-        headersData = {"token": token, 
-                       "User-Agent": user_agent,
-                       "Accept": "application/json, text/plain, */*",
-                       "lang": "en",
-                       "sec-ch-ua-platform": "macOS",
-                       "Sec-Fetch-Site": "same-origin",
-                       "Sec-Fetch-Mode": "cors",
-                       "Sec-Fetch-Dest": "empty",
-                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                       "Connection": "keep-alive",
-                       "X-Requested-With": "XMLHttpRequest"}
-
-        await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
-
-        status = int(allData["addressbook"]["result"]["status"]) 
-        allData["inverterStatus"] = status
-        
-        if status!= 0:
-            await getRaw(hass, headersData, allData, deviceID)
-            await getReport(hass, headersData, allData, deviceID)
-        else:
-            _LOGGER.debug("Inverter is off-line, not fetching addictional data")
-
-        _LOGGER.debug(allData)
-
-        return allData
-
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        # Name of the data. For logging purposes.
-        name=DEFAULT_NAME,
-        update_method=async_update_data,
-        # Polling interval. Will only be polled if there are subscribers.
-        update_interval=SCAN_INTERVAL,
-    )
-
-    await coordinator.async_refresh()
-
-    if not coordinator.last_update_success:
-        _LOGGER.error(
-            "FoxESS Cloud initializaction failed, fix error and restar ha")
-        return False
-
-    #hass.config_entries.async_setup_platforms(config, PLATFORMS)
-
-    hass.data[DOMAIN] = { 
-        ATT_COORDINATOR: coordinator,
-        ATT_NAME: name,
-        ATT_DEVICEID: deviceID
-    }
-
-    for platform in PLATFORMS:
-       await discovery.async_load_platform(hass, platform, DOMAIN, "", config)
+        for platform in PLATFORMS:
+        await discovery.async_load_platform(hass, platform, DOMAIN, "", config)
 
     # Return boolean to indicate that initialization was successfully.
     return True
@@ -265,7 +267,7 @@ async def getReport(hass, headersData, allData, deviceID):
 async def getRaw(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"hour","beginDate":{"year":'+now.strftime(
+    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"day","beginDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
     restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,
@@ -279,6 +281,7 @@ async def getRaw(hass, headersData, allData, deviceID):
         _LOGGER.debug("FoxESS Raw data fetched correcly " +
                       restRaw.data[:150] + " ... ")
         allData['raw'] = {}
+
         for item in json.loads(restRaw.data)['result']:
             variableName = item['variable']
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
