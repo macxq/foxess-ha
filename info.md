@@ -1,11 +1,3 @@
-## 💽 Version
-{% if version_installed == version_available %} 
-👍 You already have the latest released version installed. 
-{% endif %}
-
-{% if installed and version_installed != selected_tag %}
- 🤓 Changes from version {{ version_installed }}
-{% endif %}
 
 <h2 align="center">
    <a href="https://www.fox-ess.com">FoxESS</a> and<a href="https://www.home-assistant.io"> Home Assistant</a> integration  🏡 ☀
@@ -19,35 +11,16 @@
 </h2>
 
 
-##  ⚠️ Disclaimer
-
-⚠️ **USING THIS INTEGRATION CAN CAUSE BLOCKING OF YOUR IP ADDRESS BY FOXESSCLOUD.** ⚠️ 
-
- AS A RESULT YOUR INVERTER WILL NOT BE ABLE TO SEND DATA AND YOU WILL NOT BE ABBLE  TO CONNECT TO FOXESSCLOUD FROM YOUR WIFI.
- 
- We are working to fix this ;) 
-
-
-## ⚙️ Installation & ♻️ Update
-
-Use hacs.io to manage the installation and update process. Right now this integration is part of HACS by default - no more neeed to add it by custom repositories 🥳
-
-## ⌨️ Manual installation 
-
-Copy content of `custom_components` folder into your HA `/config/custom_components` folder
-
-
-
 ## 💾 Configuration
 
 Edit your home-assistan `/configuration.yaml`  and add:
 
 ```yaml
-sensor:
-  - platform: foxess
-    username: foxesscloud_username
-    password: foxesscloud_password
-    deviceID: foxesscloud_inverter_id
+foxess:
+   username: foxesscloud_username
+   password: foxesscloud_password
+   deviceID: foxesscloud_inverter_id
+   name: optional_prefix_for_entities
 ```
 
 #### Auxiliary notes:
