@@ -6,6 +6,6 @@
   "codeowners": [],
   "requirements": ["random_user_agent"],
   "iot_class": "local_polling",
-  "version": "v1.0",
+  "version": "v0.2.0",
   "issue_tracker":"https://github.com/macxq/foxess-ha/issues"
 }
