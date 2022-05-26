@@ -18,7 +18,6 @@ Use hacs.io to manage the installation and update process. Right now this integr
 Copy content of `custom_components` folder into your HA `/config/custom_components` folder
 
 
-
 ## 💾 Configuration
 
 Edit your home-assistan `/configuration.yaml`  and add:
@@ -28,6 +27,7 @@ foxess:
    username: foxesscloud_username
    password: foxesscloud_password
    deviceID: foxesscloud_inverter_id
+   name: optional_prefix_for_entities
 ```
 
 #### Auxiliary notes:
