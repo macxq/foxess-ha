@@ -58,7 +58,7 @@ METHOD_GET = "GET"
 CONF_DEVICEID = "deviceID"
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = True
-token = None
+tokens = {}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,8 +97,8 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
         hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
-        async def async_update_data():
-            _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
+        async def async_update_data(name=name,username=username,hashedPassword=hashedPassword,deviceID=deviceID):
+            _LOGGER.debug(f"{name} - Updating data from https://www.foxesscloud.com/")
 
             allData = {
                 "report":{},
@@ -106,13 +106,13 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
                 "online":False
             }
 
-            global token
-            if token is None:
-                _LOGGER.debug("Token is empty, authenticating for the firts time")
-                token = await authAndgetToken(hass, username, hashedPassword)
+            global tokens
+            if name not in tokens:
+                _LOGGER.debug(f"Token for {name} is empty, authenticating for the firts time")
+                tokens[name] = await authAndgetToken(hass, username, hashedPassword, name)
 
             user_agent = user_agent_rotator.get_random_user_agent()
-            headersData = {"token": token, 
+            headersData = {"token": tokens[name], 
                         "User-Agent": user_agent,
                         "Accept": "application/json, text/plain, */*",
                         "lang": "en",
@@ -125,18 +125,18 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
                         "Connection": "keep-alive",
                         "X-Requested-With": "XMLHttpRequest"}
 
-            await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
+            await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,name,0)
 
             status = int(allData["addressbook"]["result"]["status"]) 
             allData["inverterStatus"] = status
             
             if status!= 0:
-                await getRaw(hass, headersData, allData, deviceID)
-                await getReport(hass, headersData, allData, deviceID)
+                await getRaw(hass, headersData, allData, deviceID, name)
+                await getReport(hass, headersData, allData, deviceID, name)
             else:
                 _LOGGER.debug("Inverter is off-line, not fetching addictional data")
 
-            _LOGGER.debug(allData)
+            _LOGGER.debug(f"🟢 All Data colected for {name} {allData}")
 
             return allData
 
@@ -144,7 +144,7 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
             hass,
             _LOGGER,
             # Name of the data. For logging purposes.
-            name=DEFAULT_NAME,
+            name=name,
             update_method=async_update_data,
             # Polling interval. Will only be polled if there are subscribers.
             update_interval=SCAN_INTERVAL,
@@ -154,7 +154,7 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
         if not coordinator.last_update_success:
             _LOGGER.error(
-                "FoxESS Cloud initializaction failed, fix error and restar ha")
+                f"{name} Cloud initializaction failed, fix error and restar ha")
             return False
 
 
@@ -171,7 +171,7 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
     return True
 
 
-async def authAndgetToken(hass, username, hashedPassword):
+async def authAndgetToken(hass, username, hashedPassword, name):
 
     payloadAuth = {"user": username, "password": hashedPassword}
     user_agent = user_agent_rotator.get_random_user_agent() 
@@ -193,7 +193,7 @@ async def authAndgetToken(hass, username, hashedPassword):
     await restAuth.async_update()
 
     if restAuth.data is None:
-        _LOGGER.error("Unable to login to FoxESS Cloud - No data recived")
+        _LOGGER.error(f"{name} - Unable to login to FoxESS Cloud - No data recived")
         return False
 
     response = json.loads(restAuth.data)
@@ -201,46 +201,46 @@ async def authAndgetToken(hass, username, hashedPassword):
     if response["result"] is None:
         if response["errno"] is not None and response["errno"] == 41807:
             raise UpdateFailed(
-                f"Unable to login to FoxESS Cloud - bad username or password! {restAuth.data}")
+                f"{name} - Unable to login to FoxESS Cloud - bad username or password! {restAuth.data}")
         else:
             raise UpdateFailed(
-                f"Error communicating with API: {restAuth.data}")
+                f"{name} - Error communicating with API: {restAuth.data}")
     else:
-        _LOGGER.debug("Login succesfull" + restAuth.data)
+        _LOGGER.debug(f"{name} - Login succesfull" + restAuth.data)
 
     token = response["result"]["token"]
     return token
 
 
-async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
+async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,name,tokenRefreshRetrys):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
                                deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restAddressBook.async_update()
 
     if restAddressBook.data is None:
-        _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
+        _LOGGER.error(f"{name} - Unable to get Addressbook data from FoxESS Cloud")
         return False
     else:
         response = json.loads(restAddressBook.data)
         if response["errno"] is not None and response["errno"] == 41809:
                 if tokenRefreshRetrys > 2:
-                    raise UpdateFailed(f"Unable to refresh token in {tokenRefreshRetrys} retries")
-                global token
-                _LOGGER.debug(f"Token has expierd, re-authenticating {tokenRefreshRetrys}")
-                token = await authAndgetToken(hass, username, hashedPassword)
+                    raise UpdateFailed(f"{name} - Unable to refresh token in {tokenRefreshRetrys} retries")
+                global tokens
+                _LOGGER.debug(f"{name} - Token has expierd, re-authenticating {tokenRefreshRetrys}")
+                tokens[name] = await authAndgetToken(hass, username, hashedPassword)
                 getErnings(hass, headersData, allData, deviceID, username, hashedPassword,tokenRefreshRetrys+1)
         else:
             _LOGGER.debug(
-                "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
+                f"{name} - FoxESS Addressbook data fetched correcly "+restAddressBook.data)
             allData['addressbook'] = response
 
 
-async def getReport(hass, headersData, allData, deviceID):
+async def getReport(hass, headersData, allData, deviceID, name):
     now = datetime.now()
 
 
-    reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
-        "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
+    reportData = '{"deviceID":"'+deviceID+'","reportType":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
+        "%Y")+',"month":'+now.strftime("%_m")+'}}'
 
     restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
@@ -248,10 +248,10 @@ async def getReport(hass, headersData, allData, deviceID):
     await restReport.async_update()
 
     if restReport.data is None:
-        _LOGGER.error("Unable to get Report data from FoxESS Cloud")
+        _LOGGER.error(f"{name} - Unable to get Report data from FoxESS Cloud")
         return False
     else:
-        _LOGGER.debug("FoxESS Report data fetched correcly " +
+        _LOGGER.debug(f"{name} - FoxESS Report data fetched correcly " +
                       restReport.data[:150] + " ... ")
 
         for item in json.loads(restReport.data)['result']:
@@ -260,13 +260,14 @@ async def getReport(hass, headersData, allData, deviceID):
             # Daily reports break down the data hour by hour for the whole day
             # even if we're only partially through, so sum the values together
             # to get our daily total so far...
-            cumulative_total = 0
+            # EDIT 👆 this aproche dose not work, sum returns the underestimated values, there is some inconsistency on foxesscloud suite
             for dataItem in item['data']:
-                cumulative_total += dataItem['value']
-            allData['report'][variableName] = cumulative_total
+                if dataItem['index'] == int(now.strftime("%d")):
+                    allData['report'][variableName] = dataItem['value']
+            
 
 
-async def getRaw(hass, headersData, allData, deviceID):
+async def getRaw(hass, headersData, allData, deviceID, name):
     now = datetime.now()
 
     rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"day","beginDate":{"year":'+now.strftime(
@@ -277,10 +278,10 @@ async def getRaw(hass, headersData, allData, deviceID):
     await restRaw.async_update()
 
     if restRaw.data is None:
-        _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
+        _LOGGER.error(f"{name} - Unable to get Raw data from FoxESS Cloud")
         return False
     else:
-        _LOGGER.debug("FoxESS Raw data fetched correcly " +
+        _LOGGER.debug(f"{name} - FoxESS Raw data fetched correcly " +
                       restRaw.data[:150] + " ... ")
         allData['raw'] = {}
 
