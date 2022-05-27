@@ -18,16 +18,6 @@
     </br>
 </h2>
 
-
-##  ⚠️ Disclaimer
-
-⚠️ **USING THIS INTEGRATION CAN CAUSE BLOCKING OF YOUR IP ADDRESS BY FOXESSCLOUD.** ⚠️ 
-
- AS A RESULT YOUR INVERTER WILL NOT BE ABLE TO SEND DATA AND YOU WILL NOT BE ABBLE  TO CONNECT TO FOXESSCLOUD FROM YOUR WIFI.
- 
- We are working to fix this ;) 
-
-
 ## ⚙️ Installation & ♻️ Update
 
 Use hacs.io to manage the installation and update process. Right now this integration is part of HACS by default - no more neeed to add it by custom repositories 🥳
