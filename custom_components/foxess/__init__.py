@@ -64,14 +64,14 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=5)
 
-# CONFIG_SCHEMA = vol.Schema({
-#     DOMAIN: vol.Schema([{
-#         vol.Required(CONF_USERNAME): cv.string,
-#         vol.Required(CONF_PASSWORD): cv.string,
-#         vol.Required(CONF_DEVICEID): cv.string,
-#         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
-#          }], extra=vol.ALLOW_EXTRA),
-# }, extra=vol.ALLOW_EXTRA)
+ CONFIG_SCHEMA = vol.Schema({
+     DOMAIN: vol.Schema([{
+         vol.Required(CONF_USERNAME): cv.string,
+         vol.Required(CONF_PASSWORD): cv.string,
+         vol.Required(CONF_DEVICEID): cv.string,
+         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
+          }], extra=vol.ALLOW_EXTRA),
+ }, extra=vol.ALLOW_EXTRA)
 
 PLATFORMS: list[str] = ["sensor","number"]
 
