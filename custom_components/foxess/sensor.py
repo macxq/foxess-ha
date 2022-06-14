@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_TOTAL_INCREASING,
-    STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL, 
     STATE_CLASS_MEASUREMENT,
     SensorEntity
 )
@@ -283,6 +283,7 @@ class FoxESSEnergyFeedin(FoxESSEnergyGenericEntity):
 
 
 class FoxESSEnergyBatCharge(FoxESSEnergyGenericEntity):
+    
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator, name, deviceID,"Bat Charge","{}bat-charge".format(deviceID))
