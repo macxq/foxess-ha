@@ -64,6 +64,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=5)
 
+<<<<<<< HEAD
 FOXESS_SCHEMA =  vol.Schema(
     {
         vol.Optional("name",default=DEFAULT_NAME): cv.string,
@@ -78,6 +79,16 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA
 )
 
+=======
+ CONFIG_SCHEMA = vol.Schema({
+     DOMAIN: vol.Schema([{
+         vol.Required(CONF_USERNAME): cv.string,
+         vol.Required(CONF_PASSWORD): cv.string,
+         vol.Required(CONF_DEVICEID): cv.string,
+         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
+          }], extra=vol.ALLOW_EXTRA),
+ }, extra=vol.ALLOW_EXTRA)
+>>>>>>> a2edc5b961750310fb56f2a7b061b01ad1e4abb4
 
 PLATFORMS: list[str] = ["sensor","number"]
 
