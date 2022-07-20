@@ -55,7 +55,7 @@ _ENDPOINT_ADDRESSBOOK = "https://www.foxesscloud.com/c/v0/device/addressbook?dev
 METHOD_POST = "POST"
 METHOD_GET = "GET"
 
-CONF_DEVICEID = "deviceID"
+CONF_DEVICEID = "devices"
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = True
 tokens = {}
@@ -64,31 +64,20 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=5)
 
-<<<<<<< HEAD
-FOXESS_SCHEMA =  vol.Schema(
-    {
-        vol.Optional("name",default=DEFAULT_NAME): cv.string,
-        vol.Required("username"): cv.string,
-        vol.Required("password"): cv.string,
-        vol.Required(CONF_DEVICEID): cv.string
+
+
+CONFIG_SCHEMA = vol.Schema({
+    DOMAIN: vol.Schema({
+        cv.string :{
+            vol.Required(CONF_PASSWORD): cv.string,
+            vol.Required(CONF_DEVICEID): vol.Schema({
+                cv.string: cv.string
+            }, extra=vol.ALLOW_EXTRA)
+            
+        }
     }
-)
-
-CONFIG_SCHEMA = vol.Schema(
-    {DOMAIN: vol.All( cv.ensure_list,[FOXESS_SCHEMA])}, 
-    extra=vol.ALLOW_EXTRA
-)
-
-=======
- CONFIG_SCHEMA = vol.Schema({
-     DOMAIN: vol.Schema([{
-         vol.Required(CONF_USERNAME): cv.string,
-         vol.Required(CONF_PASSWORD): cv.string,
-         vol.Required(CONF_DEVICEID): cv.string,
-         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
-          }], extra=vol.ALLOW_EXTRA),
- }, extra=vol.ALLOW_EXTRA)
->>>>>>> a2edc5b961750310fb56f2a7b061b01ad1e4abb4
+    , extra=vol.ALLOW_EXTRA),
+}, extra=vol.ALLOW_EXTRA)
 
 PLATFORMS: list[str] = ["sensor","number"]
 
@@ -103,83 +92,83 @@ async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
 
     hass.data[DOMAIN]  = []
 
-    for entry in config:
-        name = entry[CONF_NAME]
-        username = entry[CONF_USERNAME]
-        password = entry[CONF_PASSWORD]
-        deviceID = entry[CONF_DEVICEID]
+    # for entry in config:
+    #     name = entry[CONF_NAME]
+    #     username = entry[CONF_USERNAME]
+    #     password = entry[CONF_PASSWORD]
+    #     deviceID = entry[CONF_DEVICEID]
 
-        hashedPassword = hashlib.md5(password.encode()).hexdigest()
+    #     hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
-        async def async_update_data(name=name,username=username,hashedPassword=hashedPassword,deviceID=deviceID):
-            _LOGGER.debug(f"{name} - Updating data from https://www.foxesscloud.com/")
+    #     async def async_update_data(name=name,username=username,hashedPassword=hashedPassword,deviceID=deviceID):
+    #         _LOGGER.debug(f"{name} - Updating data from https://www.foxesscloud.com/")
 
-            allData = {
-                "report":{},
-                "raw":{},
-                "online":False
-            }
+    #         allData = {
+    #             "report":{},
+    #             "raw":{},
+    #             "online":False
+    #         }
 
-            global tokens
-            if name not in tokens:
-                _LOGGER.debug(f"Token for {name} is empty, authenticating for the firts time")
-                tokens[name] = await authAndgetToken(hass, username, hashedPassword, name)
+    #         global tokens
+    #         if name not in tokens:
+    #             _LOGGER.debug(f"Token for {name} is empty, authenticating for the firts time")
+    #             tokens[name] = await authAndgetToken(hass, username, hashedPassword, name)
 
-            user_agent = user_agent_rotator.get_random_user_agent()
-            headersData = {"token": tokens[name], 
-                        "User-Agent": user_agent,
-                        "Accept": "application/json, text/plain, */*",
-                        "lang": "en",
-                        "sec-ch-ua-platform": "macOS",
-                        "Sec-Fetch-Site": "same-origin",
-                        "Sec-Fetch-Mode": "cors",
-                        "Sec-Fetch-Dest": "empty",
-                        "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                        "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                        "Connection": "keep-alive",
-                        "X-Requested-With": "XMLHttpRequest"}
+    #         user_agent = user_agent_rotator.get_random_user_agent()
+    #         headersData = {"token": tokens[name], 
+    #                     "User-Agent": user_agent,
+    #                     "Accept": "application/json, text/plain, */*",
+    #                     "lang": "en",
+    #                     "sec-ch-ua-platform": "macOS",
+    #                     "Sec-Fetch-Site": "same-origin",
+    #                     "Sec-Fetch-Mode": "cors",
+    #                     "Sec-Fetch-Dest": "empty",
+    #                     "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+    #                     "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+    #                     "Connection": "keep-alive",
+    #                     "X-Requested-With": "XMLHttpRequest"}
 
-            await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,name,0)
+    #         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,name,0)
 
-            status = int(allData["addressbook"]["result"]["status"]) 
-            allData["inverterStatus"] = status
+    #         status = int(allData["addressbook"]["result"]["status"]) 
+    #         allData["inverterStatus"] = status
             
-            if status!= 0:
-                await getRaw(hass, headersData, allData, deviceID, name)
-                await getReport(hass, headersData, allData, deviceID, name)
-            else:
-                _LOGGER.debug("Inverter is off-line, not fetching addictional data")
+    #         if status!= 0:
+    #             await getRaw(hass, headersData, allData, deviceID, name)
+    #             await getReport(hass, headersData, allData, deviceID, name)
+    #         else:
+    #             _LOGGER.debug("Inverter is off-line, not fetching addictional data")
 
-            _LOGGER.debug(f"🟢 All Data colected for {name} {allData}")
+    #         _LOGGER.debug(f"🟢 All Data colected for {name} {allData}")
 
-            return allData
+    #         return allData
 
-        coordinator = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            # Name of the data. For logging purposes.
-            name=name,
-            update_method=async_update_data,
-            # Polling interval. Will only be polled if there are subscribers.
-            update_interval=SCAN_INTERVAL,
-        )
+    #     coordinator = DataUpdateCoordinator(
+    #         hass,
+    #         _LOGGER,
+    #         # Name of the data. For logging purposes.
+    #         name=name,
+    #         update_method=async_update_data,
+    #         # Polling interval. Will only be polled if there are subscribers.
+    #         update_interval=SCAN_INTERVAL,
+    #     )
 
-        await coordinator.async_refresh()
+    #     await coordinator.async_refresh()
 
-        if not coordinator.last_update_success:
-            _LOGGER.error(
-                f"{name} Cloud initializaction failed, fix error and restar ha")
-            return False
+    #     if not coordinator.last_update_success:
+    #         _LOGGER.error(
+    #             f"{name} Cloud initializaction failed, fix error and restar ha")
+    #         return False
 
 
-        hass.data[DOMAIN].append({ 
-            ATT_COORDINATOR: coordinator,
-            ATT_NAME: name,
-            ATT_DEVICEID: deviceID
-        })
+    #     hass.data[DOMAIN].append({ 
+    #         ATT_COORDINATOR: coordinator,
+    #         ATT_NAME: name,
+    #         ATT_DEVICEID: deviceID
+    #     })
 
-    for platform in PLATFORMS:
-        await discovery.async_load_platform(hass, platform, DOMAIN, "", config)
+    # for platform in PLATFORMS:
+    #     await discovery.async_load_platform(hass, platform, DOMAIN, "", config)
 
     # Return boolean to indicate that initialization was successfully.
     return True
