@@ -24,19 +24,45 @@ Edit your home-assistan `/configuration.yaml`  and add:
 
 ```yaml
 foxess:
-  *foxesscloud_username*:
-   password: *foxesscloud_password*
-   devices: *foxesscloud_inverter_id*
-      *device_name*: *foxesscloud_inverter_id*
+  foxesscloud_username:
+   password: foxesscloud_password
+   devices: 
+      device_name: foxesscloud_inverter_id
 ```
-
+replacing:
+- `foxesscloud_username` username that you use to login to foxess clous
+- `foxesscloud_password` password that you use to login to foxess clous
+- `device_name` - device name , the prefix that will be in all entitys related with one device, if you are migrating to new config use `FoxESS` to keep the history continuity 
+- `foxesscloud_inverter_id` id of your device
 
 #### Auxiliary notes:
 - `foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page.
 ⚠️  Please make sure that this is exact value from inverter details page address between = and & character:
 ![Screenshot 2021-11-08 at 08 42 05](https://user-images.githubusercontent.com/2965092/140761535-edb12226-b2b8-4f2b-87ce-11b67476a9e2.png)
-- Multi-inverter support - if you have more than one FoxESS device in your installation, you can leverage the optional `name` field in you config, if you want see an example check out [here](https://github.com/macxq/foxess-ha/wiki/Multi-Inverter-Support)
-
+- Multi-inverter support 
+   - if you have more then one device on one account
+   
+      ```yaml
+      foxess:
+        joe@gmail.com:
+         password: $ecret4
+         devices: 
+            FoxESS: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee5
+            FoxESS_2: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee4
+      ```
+   - if you have more then one device on  difrent accounts
+      ```yaml
+      foxess:
+        joe@gmail.com:
+         password: $ecret4
+         devices: 
+            FoxESS_2: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee3
+        big@gmail.com:
+         password: $ecret##$1:L<MNB
+         devices: 
+            FoxESS_Garage: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1
+            Uncle_Bob: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2
+      ```
 
 
 ## 📊 Provided entities
