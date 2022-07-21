@@ -1,4 +1,4 @@
-from homeassistant.components.number import (NumberEntity)
+from homeassistant.components.input_number import (InputNumber)
 from homeassistant.helpers.entity import (EntityCategory)
 import logging
 
@@ -10,27 +10,27 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     #coordinator: SensiboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    async_add_entities(
-       [FoxESSEnergyBatMinSoC("aaa","bb")]
-    )
+#     async_add_entities(
+#        [FoxESSEnergyBatMinSoC("aaa","bb")]
+#     )
 
 
-class FoxESSEnergyBatMinSoC(NumberEntity):
-    _attr_value = 4
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_available_with_device_off=True,
+# class FoxESSEnergyBatMinSoC(InputNumber):
+#     _attr_value = 4
+#     _attr_entity_category = EntityCategory.CONFIG
+#     _attr_available_with_device_off=True,
 
-    def __init__(self, name, deviceID):
-        _LOGGER.debug("Initing Entity - Bat Min SoC")
-        self._attr_name = name + " - Bat Min SoC"
-        self._attr_key = "BatMinSoC"
-        self._attr_unique_id = deviceID+"-bat_min_SoC"
-        self._attr_method = "async_set_value"
+#     def __init__(self, name, deviceID):
+#         _LOGGER.debug("Initing Entity - Bat Min SoC")
+#         self._attr_name = name + " - Bat Min SoC"
+#         self._attr_key = "BatMinSoC"
+#         self._attr_unique_id = deviceID+"-bat_min_SoC"
+#         self._attr_method = "async_set_value"
 
 
-    async def async_set_value(self, value):
-        """Update the current value."""
-        _LOGGER.debug("Updating value %d",value)
-        self._attr_value = value
-        self.async_write_ha_state()
+#     async def async_set_value(self, value):
+#         """Update the current value."""
+#         _LOGGER.debug("Updating value %d",value)
+#         self._attr_value = value
+#         self.async_write_ha_state()
 
