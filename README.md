@@ -24,11 +24,12 @@ Edit your home-assistan `/configuration.yaml`  and add:
 
 ```yaml
 foxess:
-   username: foxesscloud_username
-   password: foxesscloud_password
-   deviceID: foxesscloud_inverter_id
-   name: optional_prefix_for_entities
+  *foxesscloud_username*:
+   password: *foxesscloud_password*
+   devices: *foxesscloud_inverter_id*
+      *device_name*: *foxesscloud_inverter_id*
 ```
+
 
 #### Auxiliary notes:
 - `foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page.
