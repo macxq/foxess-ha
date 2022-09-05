@@ -16,6 +16,8 @@ from homeassistant.components.sensor import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_FREQUENCY,
     PLATFORM_SCHEMA,
     STATE_CLASS_TOTAL_INCREASING,
     STATE_CLASS_TOTAL,
@@ -29,6 +31,7 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     ATTR_TIME,
     ATTR_VOLTAGE,
+    FREQUENCY_HERTZ,
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
@@ -169,7 +172,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         return False
 
     async_add_entities([FoxESSPV1Power(coordinator, name, deviceID), FoxESSPV2Power(coordinator, name, deviceID), FoxESSPV3Power(coordinator, name, deviceID), FoxESSPV4Power(coordinator, name, deviceID), FoxESSBatTemp(coordinator, name, deviceID), FoxESSBatSoC(coordinator, name, deviceID), FoxESSSolarPower(coordinator, name, deviceID), FoxESSEnergySolar(coordinator, name, deviceID), FoxESSInverter(coordinator, name, deviceID), FoxESSPGenerationPower(coordinator, name, deviceID), FoxESSGridConsumptionPower(
-        coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID), FoxESSEnergyLoad(coordinator, name, deviceID)])
+        coordinator, name, deviceID), FoxESSFeedInPower(coordinator, name, deviceID), FoxESSGridVoltage(coordinator, name, deviceID), FoxESSGridFreq(coordinator, name, deviceID), FoxESSBatDischargePower(coordinator, name, deviceID), FoxESSBatChargePower(coordinator, name, deviceID), FoxESSLoadPower(coordinator, name, deviceID), FoxESSEnergyGenerated(coordinator, name, deviceID), FoxESSEnergyGridConsumption(coordinator, name, deviceID), FoxESSEnergyFeedin(coordinator, name, deviceID), FoxESSEnergyBatCharge(coordinator, name, deviceID), FoxESSEnergyBatDischarge(coordinator, name, deviceID), FoxESSEnergyLoad(coordinator, name, deviceID)])
 
 
 async def authAndgetToken(hass, username, hashedPassword):
@@ -270,7 +273,7 @@ async def getReport(hass, headersData, allData, deviceID):
 async def getRaw(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power"],"timespan":"hour","beginDate":{"year":'+now.strftime(
+    rawData = '{"deviceID":"'+deviceID+'","variables":["generationPower","feedinPower","batChargePower","batDischargePower","gridConsumptionPower","loadsPower","SoC","batTemperature","pv1Power","pv2Power","pv3Power","pv4Power", "RVolt", "RFreq"],"timespan":"hour","beginDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
     restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,
@@ -549,7 +552,57 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["pv4Power"]
         return None 
+        
+class FoxESSGridFreq(CoordinatorEntity, SensorEntity):
 
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_FREQUENCY
+    _attr_native_unit_of_measurement = FREQUENCY_HERTZ
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Grid Frequency")
+        self._attr_name = name+" - Grid Frequency"
+        self._attr_unique_id = deviceID+"grid-freq"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["RFreq"]
+        return None  
+        
+class FoxESSGridVoltage(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class = STATE_CLASS_MEASUREMENT
+    _attr_device_class = DEVICE_CLASS_VOLTAGE
+    _attr_native_unit_of_measurement = ATTR_VOLTAGE
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Grid Voltage")
+        self._attr_name = name+" - Grid Voltage"
+        self._attr_unique_id = deviceID+"grid-voltage"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["RVolt"]
+        return None 
+               
 
 class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
