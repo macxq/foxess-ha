@@ -12,10 +12,7 @@ import voluptuous as vol
 from homeassistant.components.rest.data import RestData
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.components.sensor import (
-    SensorDeviceClass.ENERGY,
-    SensorDeviceClass.POWER,
-    SensorDeviceClass.BATTERY,
-    SensorDeviceClass.TEMPERATURE,
+    SensorDeviceClass,
     PLATFORM_SCHEMA,
     STATE_CLASS_TOTAL_INCREASING,
     STATE_CLASS_TOTAL,
@@ -32,9 +29,10 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
-    ENERGY_KILO_WATT_HOUR,
+    UnitOfEnergy.KILO_WATT_HOUR,
     POWER_KILO_WATT,
     TEMP_CELSIUS,
+    UnitOfEnergy,
 
 )
 from homeassistant.helpers.update_coordinator import (
