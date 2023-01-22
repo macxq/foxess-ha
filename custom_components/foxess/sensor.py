@@ -139,7 +139,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
        
 
-        if int(allData["addressbook"]["result"]["status"]) == 1:
+        if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2:
             allData["online"] = True
             await getRaw(hass, headersData, allData, deviceID)
             await getReport(hass, headersData, allData, deviceID)
