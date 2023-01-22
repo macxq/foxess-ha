@@ -29,8 +29,9 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
-    UnitOfEnergy.KILO_WATT_HOUR,
+    UnitOfEnergy,
     POWER_KILO_WATT,
+    ENERGY_KILO_WATT_HOUR,
     TEMP_CELSIUS,
     UnitOfEnergy,
 
