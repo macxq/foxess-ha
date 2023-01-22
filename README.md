@@ -70,6 +70,12 @@ Bat Temp | °C
 
 ## 🤔 Troubleshooting 
 
+API Error summary:
+
+{"errno":41930,"result":null} ⟶ incorrect inverter id
+{"errno":40261,"result":null} ⟶ incorrect inverter id
+{"errno":41807,"result":null} ⟶ wrong user name or password
+
 Increase log level in your `/configuration.yaml` by adding:
 
 ```yaml
