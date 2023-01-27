@@ -728,7 +728,10 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
                 energyload = None
             else:
                 energyload = self.coordinator.data["report"]["loads"]
-            return energyload
+            #round
+            return round(energyload,3)
+            #original
+            #return energyload
         return None
 
 
@@ -812,7 +815,10 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
             discharge = float(
                 self.coordinator.data["report"]["dischargeEnergyToTal"])
 
-            return loads + charge + feedIn - gridConsumption - discharge
+            #round the result
+            return round((loads + charge + feedIn - gridConsumption - discharge),3)
+            #original
+            #return loads + charge + feedIn - gridConsumption - discharge
         return None
 
 
@@ -851,8 +857,14 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
             else:
                 discharge = float(
                     self.coordinator.data["raw"]["batDischargePower"])
-
-            return loads + charge + feedIn - gridConsumption - discharge
+            
+            #check if what was returned (that some time was negative) is <0, so fix it
+            total = (loads + charge + feedIn - gridConsumption - discharge)
+            if total<0:
+                total=0
+            return round(total,3)
+            # original
+            #return loads + charge + feedIn - gridConsumption - discharge
         return None
 
 
