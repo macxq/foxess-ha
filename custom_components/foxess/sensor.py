@@ -145,6 +145,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             allData["online"] = True
             await getRaw(hass, headersData, allData, deviceID)
             await getReport(hass, headersData, allData, deviceID)
+            await getReportDailyGeneration(hass, headersData, allData, deviceID)
         else:
             _LOGGER.debug(
                 "Inverter is off-line, not fetching addictional data")
@@ -275,7 +276,7 @@ async def getReport(hass, headersData, allData, deviceID):
 async def getReportDailyGeneration(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    generationData = ('{"deviceID":"' + deviceID + '","reportType": "month",' + '"variables": ["generation","feedin","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],' + '"queryDate": {' + '"year":' + now.strftime(
+    generationData = ('{"deviceID":"' + deviceID + '","reportType": "month",' + '"variables": ["generation"],' + '"queryDate": {' + '"year":' + now.strftime(
         "%Y") + ',"month":' + now.strftime("%_m") + ',"day":' + now.strftime("%_d") + ',"hour":' + now.strftime("%_H") + "}}")
 
     restGeneration = RestData(
@@ -292,15 +293,15 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
     await restGeneration.async_update()
 
     if restGeneration.data is None:
-        _LOGGER.error("Unable to get Detail from FoxESS Cloud")
+        _LOGGER.error("Unable to get daily generation from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS daily generation data fetched correctly " +
-                      restGeneration.data + " ... ")
+                      restGeneration.data)
 
-        # parsed = json.loads(restGeneration.data)["result"]
-        # allData["reportDailyGeneration"] = parsed[0]["data"][int(
-        #     now.strftime("%d")) - 1]
+        parsed = json.loads(restGeneration.data)["result"]
+        allData["reportDailyGeneration"] = parsed[0]["data"][int(
+            now.strftime("%d")) - 1]
 
 
 async def getRaw(hass, headersData, allData, deviceID):
@@ -609,7 +610,7 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["generation"] == 0:
+            if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
                 energygenerated = None
             else:
                 energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
@@ -760,7 +761,8 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             if self.coordinator.data["report"]["loads"] == 0:
-                energyload = None
+                # was getting an error on round() when load was None, changed it to 0
+                energyload = 0
             else:
                 energyload = self.coordinator.data["report"]["loads"]
             # round
