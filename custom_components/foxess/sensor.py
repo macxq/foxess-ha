@@ -51,10 +51,8 @@ from random_user_agent.user_agent import UserAgent
 from random_user_agent.params import SoftwareName, OperatingSystem
 
 software_names = [SoftwareName.CHROME.value]
-operating_systems = [OperatingSystem.WINDOWS.value,
-                     OperatingSystem.LINUX.value]
-user_agent_rotator = UserAgent(
-    software_names=software_names, operating_systems=operating_systems, limit=100)
+operating_systems = [OperatingSystem.WINDOWS.value, OperatingSystem.LINUX.value]     
+user_agent_rotator = UserAgent(software_names=software_names, operating_systems=operating_systems, limit=100)
 
 _LOGGER = logging.getLogger(__name__)
 _ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
@@ -100,7 +98,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 token = None
 
-
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
     name = config.get(CONF_NAME)
@@ -114,10 +111,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
 
         allData = {
-            "report": {},
+            "report":{},
             "reportDailyGeneration": {},
-            "raw": {},
-            "online": False
+            "raw":{},
+            "online":False
         }
 
         global token
@@ -126,7 +123,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             token = await authAndgetToken(hass, username, hashedPassword)
 
         user_agent = user_agent_rotator.get_random_user_agent()
-        headersData = {"token": token,
+        headersData = {"token": token, 
                        "User-Agent": user_agent,
                        "Accept": "application/json, text/plain, */*",
                        "lang": "en",
@@ -135,11 +132,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                        "Sec-Fetch-Mode": "cors",
                        "Sec-Fetch-Dest": "empty",
                        "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                       "Accept-Language": "en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
                        "Connection": "keep-alive",
                        "X-Requested-With": "XMLHttpRequest"}
 
-        await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword, 0)
+        await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
+
+       
 
         if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2:
             allData["online"] = True
@@ -147,8 +146,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             await getReport(hass, headersData, allData, deviceID)
             await getReportDailyGeneration(hass, headersData, allData, deviceID)
         else:
-            _LOGGER.debug(
-                "Inverter is off-line, not fetching addictional data")
+            _LOGGER.debug("Inverter is off-line, not fetching addictional data")
 
         _LOGGER.debug(allData)
 
@@ -177,10 +175,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 async def authAndgetToken(hass, username, hashedPassword):
 
-    # https://github.com/macxq/foxess-ha/issues/93#issuecomment-1319326849
-    #    payloadAuth = {"user": username, "password": hashedPassword}
+    #https://github.com/macxq/foxess-ha/issues/93#issuecomment-1319326849
+#    payloadAuth = {"user": username, "password": hashedPassword}
     payloadAuth = f'user={username}&password={hashedPassword}'
-    user_agent = user_agent_rotator.get_random_user_agent()
+    user_agent = user_agent_rotator.get_random_user_agent() 
     headersAuth = {"User-Agent": user_agent,
                    "Accept": "application/json, text/plain, */*",
                    "lang": "en",
@@ -189,9 +187,9 @@ async def authAndgetToken(hass, username, hashedPassword):
                    "Sec-Fetch-Mode": "cors",
                    "Sec-Fetch-Dest": "empty",
                    "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                   "Accept-Language": "en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                   "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
                    "Connection": "keep-alive",
-                   "X-Requested-With": "XMLHttpRequest"}
+                    "X-Requested-With": "XMLHttpRequest"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
@@ -218,7 +216,7 @@ async def authAndgetToken(hass, username, hashedPassword):
     return token
 
 
-async def getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword, tokenRefreshRetrys):
+async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
                                deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restAddressBook.async_update()
@@ -229,14 +227,12 @@ async def getAddresbook(hass, headersData, allData, deviceID, username, hashedPa
     else:
         response = json.loads(restAddressBook.data)
         if response["errno"] is not None and response["errno"] == 41809:
-            if tokenRefreshRetrys > 2:
-                raise UpdateFailed(
-                    f"Unable to refresh token in {tokenRefreshRetrys} retries")
-            global token
-            _LOGGER.debug(
-                f"Token has expierd, re-authenticating {tokenRefreshRetrys}")
-            token = await authAndgetToken(hass, username, hashedPassword)
-            # getErnings(hass, headersData, allData, deviceID,username, hashedPassword, tokenRefreshRetrys+1)
+                if tokenRefreshRetrys > 2:
+                    raise UpdateFailed(f"Unable to refresh token in {tokenRefreshRetrys} retries")
+                global token
+                _LOGGER.debug(f"Token has expierd, re-authenticating {tokenRefreshRetrys}")
+                token = await authAndgetToken(hass, username, hashedPassword)
+                getErnings(hass, headersData, allData, deviceID, username, hashedPassword,tokenRefreshRetrys+1)
         else:
             _LOGGER.debug(
                 "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
@@ -246,7 +242,8 @@ async def getAddresbook(hass, headersData, allData, deviceID, username, hashedPa
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
+
+    reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
     restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,
@@ -325,9 +322,8 @@ async def getRaw(hass, headersData, allData, deviceID):
             variableName = item['variable']
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
             if item["data"]:
-                allData['raw'][variableName] = item["data"].pop().get(
-                    "value", None)
-
+                allData['raw'][variableName] = item["data"].pop().get("value",None)
+        
 
 class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
     _attr_state_class = STATE_CLASS_MEASUREMENT
@@ -351,7 +347,7 @@ class FoxESSPGenerationPower(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["generationPower"]
-        return None
+        return None 
 
 
 class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
@@ -403,8 +399,8 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["feedinPower"]
-        return None
-
+        return None 
+        
 
 class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
@@ -429,7 +425,7 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["batDischargePower"]
-        return None
+        return None 
 
 
 class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
@@ -455,7 +451,8 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["batChargePower"]
-        return None
+        return None 
+        
 
 
 class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
@@ -481,7 +478,7 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["loadsPower"]
-        return None
+        return None 
 
 
 class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
@@ -507,7 +504,7 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["pv1Power"]
-        return None
+        return None 
 
 
 class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
@@ -533,8 +530,8 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["pv2Power"]
-        return None
-
+        return None 
+        
 
 class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
@@ -559,7 +556,7 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["pv3Power"]
-        return None
+        return None 
 
 
 class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
@@ -585,7 +582,7 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["pv4Power"]
-        return None
+        return None 
 
 
 class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
@@ -765,10 +762,10 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
                 energyload = 0
             else:
                 energyload = self.coordinator.data["report"]["loads"]
-            # round
-            return round(energyload, 3)
-            # original
-            # return energyload
+            #round
+            return round(energyload,3)
+            #original
+            #return energyload
         return None
 
 
@@ -845,18 +842,17 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
     def native_value(self) -> float | None:
         if self.coordinator.data["online"]:
             loads = float(self.coordinator.data["report"]["loads"])
-            charge = float(
-                self.coordinator.data["report"]["chargeEnergyToTal"])
+            charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
             feedIn = float(self.coordinator.data["report"]["feedin"])
             gridConsumption = float(
                 self.coordinator.data["report"]["gridConsumption"])
             discharge = float(
                 self.coordinator.data["report"]["dischargeEnergyToTal"])
 
-            # round the result
-            return round((loads + charge + feedIn - gridConsumption - discharge), 3)
-            # original
-            # return loads + charge + feedIn - gridConsumption - discharge
+            #round the result
+            return round((loads + charge + feedIn - gridConsumption - discharge),3)
+            #original
+            #return loads + charge + feedIn - gridConsumption - discharge
         return None
 
 
@@ -895,14 +891,14 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
             else:
                 discharge = float(
                     self.coordinator.data["raw"]["batDischargePower"])
-
-            # check if what was returned (that some time was negative) is <0, so fix it
+            
+            #check if what was returned (that some time was negative) is <0, so fix it
             total = (loads + charge + feedIn - gridConsumption - discharge)
-            if total < 0:
-                total = 0
-            return round(total, 3)
+            if total<0:
+                total=0
+            return round(total,3)
             # original
-            # return loads + charge + feedIn - gridConsumption - discharge
+            #return loads + charge + feedIn - gridConsumption - discharge
         return None
 
 
@@ -928,7 +924,7 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
     def native_value(self) -> float | None:
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["SoC"]
-        return None
+        return  None
 
     @property
     def icon(self):
