@@ -848,11 +848,10 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
                 self.coordinator.data["report"]["gridConsumption"])
             discharge = float(
                 self.coordinator.data["report"]["dischargeEnergyToTal"])
-
-            #round the result
-            return round((loads + charge + feedIn - gridConsumption - discharge),3)
-            #original
-            #return loads + charge + feedIn - gridConsumption - discharge
+            energysolar = round((loads + charge + feedIn - gridConsumption - discharge),3)
+            if energysolar<0:
+                energysolar=0
+            return round(energysolar,3)
         return None
 
 
