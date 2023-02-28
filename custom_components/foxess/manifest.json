@@ -1,11 +1,11 @@
 {
+  "domain": "foxess",
+  "name": "HA & FoxESSCloud integration",
   "codeowners": ["@macxq","@r-amado"],
   "dependencies": ["rest"],
   "documentation": "https://github.com/macxq/foxess-ha",
-  "domain": "foxess",
   "iot_class": "local_polling",
   "issue_tracker":"https://github.com/macxq/foxess-ha/issues",
-  "name": "HA & FoxESSCloud integration",
   "requirements": ["random_user_agent"],
   "version": "v0.4"  
 }
