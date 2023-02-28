@@ -1,5 +1,5 @@
 {
-  "codeowners": ["macxq","r-amado"],
+  "codeowners": ["https://github.com/macxq","https://github.com/r-amado"],
   "dependencies": ["rest"],
   "documentation": "https://github.com/macxq/foxess-ha",
   "domain": "foxess",
