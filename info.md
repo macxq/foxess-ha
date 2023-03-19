@@ -60,10 +60,32 @@ Bat Discharge Power  |  kW
 Bat Charge Power  |  kW  
 Solar Power | kW
 Load Power | kW
+PV1 Current | A
 PV1 Power | kW
+PV1 Volt | V
+PV2 Current | A
 PV2 Power | kW
+PV2 Volt | V
+PV3 Current | A
 PV3 Power | kW
+PV3 Volt | V
+PV4 Current | A
 PV4 Power | kW
+PV4 Volt | V
+PV Power | kW
+R Current | A
+R Freq | Hz
+R Power | kW
+R Volt | V
+S Current | A
+S Freq | Hz
+S Power | kW
+S Volt | V
+T Current | A
+T Freq | Hz
+T Power | kW
+T Volt | V
+Reactive Power | kVar
 Energy Generated  |  kWh 
 Grid Consumption  |  kWh 
 FeedIn  |  kWh  
@@ -73,6 +95,9 @@ Bat Charge  |  kWh
 Bat Discharge  |  kWh  
 Bat SoC | %
 Bat Temp | °C 
+Ambient Temp | °C
+Boost Temp | °C
+Inv Temp | °C
 
 
 💡 If you want to understand energy generation per string check out this wiki [article](https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha)
