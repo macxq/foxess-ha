@@ -272,18 +272,14 @@ async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPas
         return False
     else:
         response = json.loads(restAddressBook.data)
-        if response["errno"] is not None and response["errno"] == 41809:
-                if tokenRefreshRetrys > 2:
-                    raise UpdateFailed(f"Unable to refresh token in {tokenRefreshRetrys} retries")
+        if response["errno"] is not None and (response["errno"] == 41808 or response["errno"] == 41808):
                 global token
-                _LOGGER.debug(f"Token has expierd, re-authenticating {tokenRefreshRetrys}")
-                token = await authAndgetToken(hass, username, hashedPassword)
-                getErnings(hass, headersData, allData, deviceID, username, hashedPassword,tokenRefreshRetrys+1)
+                _LOGGER.debug(f"Token has expired, re-authenticating {tokenRefreshRetrys}")
+                token = None
         else:
             _LOGGER.debug(
                 "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
             allData['addressbook'] = response
-
 
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
