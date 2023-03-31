@@ -272,7 +272,7 @@ async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPas
         return False
     else:
         response = json.loads(restAddressBook.data)
-        if response["errno"] is not None and (response["errno"] == 41808 or response["errno"] == 41808):
+        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
                 global token
                 _LOGGER.debug(f"Token has expired, re-authenticating {tokenRefreshRetrys}")
                 token = None
