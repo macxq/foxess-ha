@@ -63,6 +63,7 @@ _ENDPOINT_ADDRESSBOOK = "https://www.foxesscloud.com/c/v0/device/addressbook?dev
 
 METHOD_POST = "POST"
 METHOD_GET = "GET"
+DEFAULT_ENCODING = "UTF-8"
 
 
 ATTR_DEVICE_SN = "deviceSN"
@@ -237,7 +238,7 @@ async def authAndgetToken(hass, username, hashedPassword):
                    "Connection": "keep-alive",
                     "X-Requested-With": "XMLHttpRequest"}
 
-    restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, None,
+    restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
 
     await restAuth.async_update()
@@ -264,7 +265,7 @@ async def authAndgetToken(hass, username, hashedPassword):
 
 async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, None, headersData, None, None, DEFAULT_VERIFY_SSL)
+                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL)
     await restAddressBook.async_update()
 
     if restAddressBook.data is None:
@@ -288,7 +289,7 @@ async def getReport(hass, headersData, allData, deviceID):
     reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
-    restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,
+    restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
 
     await restReport.async_update()
@@ -322,6 +323,7 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
         hass,
         METHOD_POST,
         _ENDPOINT_REPORT,
+        DEFAULT_ENCODING,
         None,
         headersData,
         None,
@@ -349,7 +351,7 @@ async def getRaw(hass, headersData, allData, deviceID):
     rawData = '{"deviceID":"'+deviceID+'","variables":["ambientTemperation","batChargePower","batCurrent","batDischargePower","batTemperature","batVolt","boostTemperation","chargeEnergyToTal","chargeTemperature","dischargeEnergyToTal","dspTemperature","epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT","feedin","feedin2","feedinPower","generation","generationPower","gridConsumption","gridConsumption2","gridConsumptionPower","input","invBatCurrent","invBatPower","invBatVolt","invTemperation","loads","loadsPower","loadsPowerR","loadsPowerS","loadsPowerT","meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor","pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt","pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower","RCurrent","ReactivePower","RFreq","RPower","RVolt","SCurrent","SFreq","SoC","SPower","SVolt","TCurrent","TFreq","TPower","TVolt"],"timespan":"hour","beginDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
-    restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,
+    restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
                        None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
     await restRaw.async_update()
 
