@@ -187,6 +187,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSRCurrent(coordinator, name, deviceID),
         FoxESSRFreq(coordinator, name, deviceID),
         FoxESSRPower(coordinator, name, deviceID),
+        FoxESSMeter2Power(coordinator, name, deviceID),
         FoxESSRVolt(coordinator, name, deviceID),
         FoxESSSCurrent(coordinator, name, deviceID),
         FoxESSSFreq(coordinator, name, deviceID),
@@ -938,6 +939,31 @@ class FoxESSRPower(CoordinatorEntity, SensorEntity):
         if self.coordinator.data["online"]:
             return self.coordinator.data["raw"]["RPower"]
         return None
+
+class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class = SensorStateClass = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = POWER_KILO_WATT
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initing Entity - Meter2 Power")
+        self._attr_name = name+" - Meter2 Power"
+        self._attr_unique_id = deviceID+"meter2-power"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data["online"]:
+            return self.coordinator.data["raw"]["meterPower2"]
+        return None 
 
 
 class FoxESSRVolt(CoordinatorEntity, SensorEntity):
