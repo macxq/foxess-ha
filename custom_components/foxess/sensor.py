@@ -141,7 +141,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
 
 
-        if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2:
+        if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2 or int(allData["addressbook"]["result"]["status"]) == 3:
             allData["online"] = True
             await getRaw(hass, headersData, allData, deviceID)
             await getReport(hass, headersData, allData, deviceID)
@@ -1442,7 +1442,10 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
         if int(self.coordinator.data["addressbook"]["result"]["status"]) == 1:
             return "on-line"
         else:
-            return "off-line"
+            if int(self.coordinator.data["addressbook"]["result"]["status"]) == 2:
+                return "in-alarm"
+            else:
+                return "off-line"
 
     @property
     def extra_state_attributes(self):
