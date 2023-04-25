@@ -280,7 +280,7 @@ async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPas
                 token = None
         else:
             _LOGGER.debug(
-                "FoxESS Addressbook data fetched correcly "+restAddressBook.data)
+                "FoxESS Addressbook data fetched correctly "+restAddressBook.data)
             allData['addressbook'] = response
 
 async def getReport(hass, headersData, allData, deviceID):
@@ -360,7 +360,7 @@ async def getRaw(hass, headersData, allData, deviceID):
         _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
         return False
     else:
-        _LOGGER.debug("FoxESS Raw data fetched correcly " +
+        _LOGGER.debug("FoxESS Raw data fetched correctly " +
                       restRaw.data[:150] + " ... ")
         allData['raw'] = {}
         for item in json.loads(restRaw.data)['result']:
@@ -390,7 +390,7 @@ class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["generationPower"]
         return None
 
@@ -416,7 +416,7 @@ class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["gridConsumptionPower"]
         return None
 
@@ -442,7 +442,7 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["feedinPower"]
         return None
 
@@ -468,7 +468,7 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["batDischargePower"]
         return None
 
@@ -494,7 +494,7 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["batChargePower"]
         return None
 
@@ -520,7 +520,7 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["loadsPower"]
         return None
 
@@ -546,7 +546,7 @@ class FoxESSPV1Current(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv1Current"]
         return None
 
@@ -572,7 +572,7 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv1Power"]
         return None
 
@@ -598,7 +598,7 @@ class FoxESSPV1Volt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv1Volt"]
         return None
 
@@ -624,7 +624,7 @@ class FoxESSPV2Current(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv2Current"]
         return None
 
@@ -650,7 +650,7 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv2Power"]
         return None
 
@@ -676,7 +676,7 @@ class FoxESSPV2Volt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv2Volt"]
         return None
 
@@ -702,7 +702,7 @@ class FoxESSPV3Current(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv3Current"]
         return None
 
@@ -728,7 +728,7 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv3Power"]
         return None
 
@@ -754,7 +754,7 @@ class FoxESSPV3Volt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv3Volt"]
         return None
 
@@ -780,7 +780,7 @@ class FoxESSPV4Current(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv4Current"]
         return None
 
@@ -806,7 +806,7 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv4Power"]
         return None
 
@@ -832,7 +832,7 @@ class FoxESSPV4Volt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pv4Volt"]
         return None
 
@@ -858,7 +858,7 @@ class FoxESSPVPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["pvPower"]
         return None
 
@@ -884,7 +884,7 @@ class FoxESSRCurrent(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["RCurrent"]
         return None
 
@@ -910,7 +910,7 @@ class FoxESSRFreq(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["RFreq"]
         return None
 
@@ -936,7 +936,7 @@ class FoxESSRPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["RPower"]
         return None
 
@@ -961,7 +961,7 @@ class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["meterPower2"]
         return None 
 
@@ -987,7 +987,7 @@ class FoxESSRVolt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["RVolt"]
         return None
 
@@ -1013,7 +1013,7 @@ class FoxESSSCurrent(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["SCurrent"]
         return None
 
@@ -1039,7 +1039,7 @@ class FoxESSSFreq(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["SFreq"]
         return None
 
@@ -1065,7 +1065,7 @@ class FoxESSSPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["SPower"]
         return None
 
@@ -1091,7 +1091,7 @@ class FoxESSSVolt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["SVolt"]
         return None
 
@@ -1117,7 +1117,7 @@ class FoxESSTCurrent(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["TCurrent"]
         return None
 
@@ -1143,7 +1143,7 @@ class FoxESSTFreq(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["TFreq"]
         return None
 
@@ -1169,7 +1169,7 @@ class FoxESSTPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["TPower"]
         return None
 
@@ -1195,7 +1195,7 @@ class FoxESSTVolt(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["TVolt"]
         return None
 
@@ -1221,7 +1221,7 @@ class FoxESSReactivePower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["ReactivePower"] * 1000
         return None
 
@@ -1520,7 +1520,7 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             loads = float(self.coordinator.data["raw"]["loadsPower"])
             if self.coordinator.data["raw"]["batChargePower"] is None:
                 charge = 0
@@ -1565,7 +1565,7 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["SoC"]
         return  None
 
@@ -1594,7 +1594,7 @@ class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["batTemperature"]
         return None
 
@@ -1619,7 +1619,7 @@ class FoxESSAmbientTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["ambientTemperation"]
         return None
 
@@ -1644,7 +1644,7 @@ class FoxESSBoostTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["boostTemperation"]
         return None
 
@@ -1669,6 +1669,6 @@ class FoxESSInvTemp(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["invTemperation"]
         return None
