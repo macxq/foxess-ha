@@ -42,7 +42,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-
+from homeassistant.util.ssl import SSLCipherList
 
 from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.core import callback
@@ -240,7 +240,7 @@ async def authAndgetToken(hass, username, hashedPassword):
                     "X-Requested-With": "XMLHttpRequest"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
-                        headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL)
+                        headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
 
     await restAuth.async_update()
 
@@ -266,7 +266,7 @@ async def authAndgetToken(hass, username, hashedPassword):
 
 async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL)
+                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
     await restAddressBook.async_update()
 
     if restAddressBook.data is None:
@@ -291,7 +291,7 @@ async def getReport(hass, headersData, allData, deviceID):
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
     restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
-                          None, headersData, None, reportData, DEFAULT_VERIFY_SSL)
+                          None, headersData, None, reportData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
 
     await restReport.async_update()
 
@@ -330,6 +330,7 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
         None,
         generationData,
         DEFAULT_VERIFY_SSL,
+        SSLCipherList.PYTHON_DEFAULT
     )
 
     await restGeneration.async_update()
@@ -353,7 +354,7 @@ async def getRaw(hass, headersData, allData, deviceID):
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
     restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
-                       None, headersData, None, rawData, DEFAULT_VERIFY_SSL)
+                       None, headersData, None, rawData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
     await restRaw.async_update()
 
     if restRaw.data is None:
