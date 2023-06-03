@@ -343,15 +343,85 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
                       restGeneration.data)
 
         parsed = json.loads(restGeneration.data)["result"]
-        allData["reportDailyGeneration"] = parsed[0]["data"][int(
-            now.strftime("%d")) - 1]
+        allData["reportDailyGeneration"] = parsed[0]["data"][int(now.strftime("%d")) - 1]
 
 
 async def getRaw(hass, headersData, allData, deviceID):
     now = datetime.now()
 
-    rawData = '{"deviceID":"'+deviceID+'","variables":["ambientTemperation","batChargePower","batCurrent","batDischargePower","batTemperature","batVolt","boostTemperation","chargeEnergyToTal","chargeTemperature","dischargeEnergyToTal","dspTemperature","epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT","feedin","feedin2","feedinPower","generation","generationPower","gridConsumption","gridConsumption2","gridConsumptionPower","input","invBatCurrent","invBatPower","invBatVolt","invTemperation","loads","loadsPower","loadsPowerR","loadsPowerS","loadsPowerT","meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor","pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt","pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower","RCurrent","ReactivePower","RFreq","RPower","RVolt","SCurrent","SFreq","SoC","SPower","SVolt","TCurrent","TFreq","TPower","TVolt"],"timespan":"hour","beginDate":{"year":'+now.strftime(
-        "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
+    rawData = ('{"deviceID":"' + deviceID +
+                '","variables":[' +
+                '"ambientTemperation"' +
+                ',"batChargePower"' +
+                ',"batCurrent"' +
+                ',"batDischargePower"' +
+                ',"batTemperature"' +
+                ',"batVolt"' +
+                ',"boostTemperation"' +
+                ',"chargeTemperature"' +
+                ',"dspTemperature"' +
+                ',"epsCurrentR"' +
+                ',"epsCurrentS"' +
+                ',"epsCurrentT"' +
+                ',"epsPower"' +
+                ',"epsPowerR"' +
+                ',"epsPowerS"' +
+                ',"epsPowerT"' +
+                ',"epsVoltR"' +
+                ',"epsVoltS"' +
+                ',"epsVoltT"' +
+                ',"feedinPower"' +
+                ',"generationPower"' +
+                ',"gridConsumptionPower"' +
+                ',"invBatCurrent"' +
+                ',"invBatPower"' +
+                ',"invBatVolt"' +
+                ',"invTemperation"' +
+                ',"loadsPower"' +
+                ',"loadsPowerR"' +
+                ',"loadsPowerS"' +
+                ',"loadsPowerT"' +
+                ',"meterPower"' +
+                ',"meterPower2"' +
+                ',"meterPowerR"' +
+                ',"meterPowerS"' +
+                ',"meterPowerT"' +
+                ',"PowerFactor"' +
+                ',"pv1Current"' +
+                ',"pv1Power"' +
+                ',"pv1Volt"' +
+                ',"pv2Current"' +
+                ',"pv2Power"' +
+                ',"pv2Volt"' +
+                ',"pv3Current"' +
+                ',"pv3Power"' +
+                ',"pv3Volt"' +
+                ',"pv4Current"' +
+                ',"pv4Power"' +
+                ',"pv4Volt"' +
+                ',"pvPower"' +
+                ',"RCurrent"' +
+                ',"ReactivePower"' +
+                ',"RFreq"' +
+                ',"RPower"' +
+                ',"RVolt"' +
+                ',"SCurrent"' +
+                ',"SFreq"' +
+                ',"SoC"' +
+                ',"SPower"' +
+                ',"SVolt"' +
+                ',"TCurrent"' +
+                ',"TFreq"' +
+                ',"TPower"' +
+                ',"TVolt"' +
+                '],' +
+                '"timespan":"hour",' +
+                '"beginDate":{' +
+                '"year":' + now.strftime("%Y") +
+                ',"month":' + now.strftime("%_m") +
+                ',"day":' + now.strftime("%_d") +
+                ',"hour":' + now.strftime("%_H") +
+                '}}')
 
     restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
                        None, headersData, None, rawData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
@@ -361,8 +431,7 @@ async def getRaw(hass, headersData, allData, deviceID):
         _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
         return False
     else:
-        _LOGGER.debug("FoxESS Raw data fetched correctly " +
-                      restRaw.data[:150] + " ... ")
+        _LOGGER.debug("FoxESS Raw data fetched correctly " + restRaw.data[:150] + " ... ")
         allData['raw'] = {}
         for item in json.loads(restRaw.data)['result']:
             variableName = item['variable']
@@ -964,7 +1033,7 @@ class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
             return self.coordinator.data["raw"]["meterPower2"]
-        return None 
+        return None
 
 
 class FoxESSRVolt(CoordinatorEntity, SensorEntity):
