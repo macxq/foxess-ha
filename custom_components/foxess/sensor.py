@@ -346,33 +346,30 @@ async def authAndgetToken(hass, username, hashedPassword):
                    "Connection": "keep-alive",
                     "X-Requested-With": "XMLHttpRequest"}
 
-    restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
 
-    await restAuth.async_update()
-
-    if restAuth.data is None:
+    
+    if response is None:
         _LOGGER.error("Unable to login to FoxESS Cloud - No data received")
         return False
 
-    response = json.loads(restAuth.data)
+    json_response = json.loads(response)
 
-    if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41807:
+    if json_response["result"] is None:
+        if json_response["errno"] is not None and json_response["errno"] == 41807:
             raise UpdateFailed(
-                f"Unable to login to FoxESS Cloud - bad username or password! {restAuth.data}")
+                f"Unable to login to FoxESS Cloud - bad username or password! {response}")
         else:
             raise UpdateFailed(
-                f"Error communicating with API: {restAuth.data}")
+                f"Error communicating with API: {response}")
     else:
-        _LOGGER.debug("Login succesfull" + restAuth.data)
+        _LOGGER.debug("Login succesfull" + response)
 
-    return response["result"]["token"]
+    return json_response["result"]["token"]
 
 
 async def getAddresbook(hass, headersData, allData, deviceID):
-    # restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-    #                           deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
     response = await async_getRestData(hass,
                                        METHOD_GET,
                                        _ENDPOINT_ADDRESSBOOK + deviceID,
@@ -383,8 +380,6 @@ async def getAddresbook(hass, headersData, allData, deviceID):
                                        None,
                                        DEFAULT_VERIFY_SSL,
                                        SSLCipherList.PYTHON_DEFAULT)
-    
-    # await restAddressBook.async_update()
     if response is None:
         _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
         return False
@@ -406,8 +401,6 @@ async def getReport(hass, headersData, allData, deviceID):
 
     response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-
-
     if response is None:
         _LOGGER.error("Unable to get Report data from FoxESS Cloud")
         return False
@@ -483,14 +476,10 @@ async def getRaw(hass, headersData, allData, deviceID):
 
 
 async def async_getRestData(hass, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher):
-            #return await hass.async_add_executor_job(requests.api.get(endpoint_url,
-            #                        headers=header,
-            #                       verify=verifyssl))
     # some threading magic here to execute the api request async
     pipeline = Thead_pipeline()
     x = threading.Thread(target=getRestData, args=(pipeline, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher))
     x.start()
-    # await hass.async_add_executor_job(x.join())
     x.join()
     data = pipeline.get_data()
     _LOGGER.debug(f"pipeline data after thread join { data}")
