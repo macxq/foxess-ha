@@ -3,10 +3,12 @@ from __future__ import annotations
 from collections import namedtuple
 from datetime import timedelta
 from datetime import datetime
+import requests
 import logging
 import json
 import hashlib
 import asyncio
+import threading
 
 import voluptuous as vol
 
@@ -296,17 +298,17 @@ async def getData(authenticationMethod, hass, allData, deviceID):
         if addressbook["addressbook"]:
             if int(addressbook["addressbook"]["result"]["status"]) == 1 or int(addressbook["addressbook"]["result"]["status"]) == 2 or int(addressbook["addressbook"]["result"]["status"]) == 3:
                 allData["online"] = True
-                t1 = asyncio.create_task(getRaw( 
+                t1 = hass.async_create_task(getRaw( 
                                                 hass, 
                                                 headersData, 
                                                 raw, 
                                                 deviceID))
-                t2 = asyncio.create_task(getReport( 
+                t2 = hass.async_create_task(getReport( 
                                                 hass, 
                                                 headersData, 
                                                 report, 
                                                 deviceID))
-                t3 = asyncio.create_task(getReportDailyGeneration( 
+                t3 = hass.async_create_task(getReportDailyGeneration( 
                                                                 hass, 
                                                                 headersData, 
                                                                 reportDailyGeneration, 
@@ -368,42 +370,52 @@ async def authAndgetToken(hass, username, hashedPassword):
     return response["result"]["token"]
 
 
-async def getAddresbook( hass, headersData, allData, deviceID):
-    restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+async def getAddresbook(hass, headersData, allData, deviceID):
+    # restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
+    #                           deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+    response = await async_getRestData(hass,
+                                       METHOD_GET,
+                                       _ENDPOINT_ADDRESSBOOK + deviceID,
+                                       DEFAULT_ENCODING,
+                                       None,
+                                       headersData,
+                                       None,
+                                       None,
+                                       DEFAULT_VERIFY_SSL,
+                                       SSLCipherList.PYTHON_DEFAULT)
     
-    await restAddressBook.async_update()
-    if restAddressBook.data is None:
+    # await restAddressBook.async_update()
+    if response is None:
         _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
         return False
     else:
-        response = json.loads(restAddressBook.data)
-        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
+        json_response = json.loads(response)
+        if json_response["errno"] is not None and (json_response["errno"] == 41809 or json_response["errno"] == 41808):
             _LOGGER.debug("Token has expired")
             global tokenExpired
             tokenExpired = True
         _LOGGER.debug(
-            "FoxESS Addressbook data fetched correctly "+restAddressBook.data)
-        allData['addressbook'] = response
+            "FoxESS Addressbook data fetched correctly " + response)
+        allData['addressbook'] = json_response
+
 
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
     reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
-    restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
 
-    await restReport.async_update()
 
-    if restReport.data is None:
+    if response is None:
         _LOGGER.error("Unable to get Report data from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS Report data fetched correctly " +
-                      restReport.data[:150] + " ... ")
+                      response[:150] + " ... ")
 
-        for item in json.loads(restReport.data)['result']:
+        for item in json.loads(response)['result']:
             variableName = item['variable']
             allData['report'][variableName] = None
             # Daily reports break down the data hour by hour for the whole day
@@ -421,7 +433,7 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
     generationData = ('{"deviceID":"' + deviceID + '","reportType": "month",' + '"variables": ["generation"],' + '"queryDate": {' + '"year":' + now.strftime(
         "%Y") + ',"month":' + now.strftime("%_m") + ',"day":' + now.strftime("%_d") + ',"hour":' + now.strftime("%_H") + "}}")
 
-    restGeneration = RestData(
+    response = await async_getRestData(
         hass,
         METHOD_POST,
         _ENDPOINT_REPORT,
@@ -434,16 +446,15 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
         SSLCipherList.PYTHON_DEFAULT
     )
         
-    await restGeneration.async_update()
-
-    if restGeneration.data is None:
+   
+    if response is None:
         _LOGGER.error("Unable to get daily generation from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS daily generation data fetched correctly " +
-                      restGeneration.data)
+                      response)
 
-        parsed = json.loads(restGeneration.data)["result"]
+        parsed = json.loads(response)["result"]
         allData["reportDailyGeneration"]= parsed[0]["data"][int(
             now.strftime("%d")) - 1]
 
@@ -454,22 +465,78 @@ async def getRaw(hass, headersData, allData, deviceID):
     rawData = '{"deviceID":"'+deviceID+'","variables":["ambientTemperation","batChargePower","batCurrent","batDischargePower","batTemperature","batVolt","boostTemperation","chargeEnergyToTal","chargeTemperature","dischargeEnergyToTal","dspTemperature","epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT","feedin","feedin2","feedinPower","generation","generationPower","gridConsumption","gridConsumption2","gridConsumptionPower","input","invBatCurrent","invBatPower","invBatVolt","invTemperation","loads","loadsPower","loadsPowerR","loadsPowerS","loadsPowerT","meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor","pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt","pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower","RCurrent","ReactivePower","RFreq","RPower","RVolt","SCurrent","SFreq","SoC","SPower","SVolt","TCurrent","TFreq","TPower","TVolt"],"timespan":"hour","beginDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
-    restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
                        None, headersData, None, rawData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-    await restRaw.async_update()
-
-    if restRaw.data is None:
+    
+    if response is None:
         _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS Raw data fetched correctly " +
-                      restRaw.data[:150] + " ... ")
+                      response[:150] + " ... ")
         allData['raw'] = {}
-        for item in json.loads(restRaw.data)['result']:
+        for item in json.loads(response)['result']:
             variableName = item['variable']
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
             if item["data"]:
                 allData['raw'][variableName] = item["data"].pop().get("value",None)
+
+
+async def async_getRestData(hass, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher):
+            #return await hass.async_add_executor_job(requests.api.get(endpoint_url,
+            #                        headers=header,
+            #                       verify=verifyssl))
+    # some threading magic here to execute the api request async
+    pipeline = Thead_pipeline()
+    x = threading.Thread(target=getRestData, args=(pipeline, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher))
+    x.start()
+    # await hass.async_add_executor_job(x.join())
+    x.join()
+    data = pipeline.get_data()
+    _LOGGER.debug(f"pipeline data after thread join { data}")
+    return data
+   
+
+def getRestData(thread_pipeline, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher):
+    match method:
+        case "GET":
+            response  =  requests.api.get(endpoint_url,
+                                    headers=header,
+                                    verify=verifyssl)
+            _LOGGER.debug(f"response from API get method: { response.text}")
+            thread_pipeline.set_data( response.text)
+        case "POST":
+            response  = requests.api.post(endpoint_url,
+                                     data=jsonData,
+                                     headers=header,
+                                     verify=verifyssl)
+            _LOGGER.debug(f"response from API post method: { response.text}")
+            
+            thread_pipeline.set_data( response.text)
+            
+
+class Thead_pipeline:
+    """
+    Class to allow a single element pipeline between producer and consumer.
+    """
+    def __init__(self):
+        self.data = None
+        self.producer_lock = threading.Lock()
+        self.consumer_lock = threading.Lock()
+        self.consumer_lock.acquire()
+
+    def get_data(self):
+        self.consumer_lock.acquire()
+        data = self.data
+        _LOGGER.debug(f"Getting data from pipeline { data}")
+        self.producer_lock.release()
+        return data
+
+    def set_data(self, data):
+        self.producer_lock.acquire()
+        _LOGGER.debug(f"setting data in pipeline { data}")
+        self.data = data
+        self.consumer_lock.release()
 
 
 class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
