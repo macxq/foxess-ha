@@ -3,9 +3,12 @@ from __future__ import annotations
 from collections import namedtuple
 from datetime import timedelta
 from datetime import datetime
+import requests
 import logging
 import json
 import hashlib
+import asyncio
+import threading
 
 import voluptuous as vol
 
@@ -98,7 +101,15 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     }
 )
 
+allData = {
+            "addressbook":{},
+            "report":{},
+            "reportDailyGeneration": {},
+            "raw":{},
+            "online":False
+        }
 token = None
+tokenExpired = True
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
@@ -110,48 +121,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     hashedPassword = hashlib.md5(password.encode()).hexdigest()
 
     async def async_update_data():
-        _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
-
-        allData = {
-            "report":{},
-            "reportDailyGeneration": {},
-            "raw":{},
-            "online":False
-        }
-
+        global allData
         global token
-        if token is None:
-            _LOGGER.debug("Token is empty, authenticating for the firts time")
-            token = await authAndgetToken(hass, username, hashedPassword)
-
-        user_agent = user_agent_rotator.get_random_user_agent()
-        headersData = {"token": token,
-                       "User-Agent": user_agent,
-                       "Accept": "application/json, text/plain, */*",
-                       "lang": "en",
-                       "sec-ch-ua-platform": "macOS",
-                       "Sec-Fetch-Site": "same-origin",
-                       "Sec-Fetch-Mode": "cors",
-                       "Sec-Fetch-Dest": "empty",
-                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                       "Connection": "keep-alive",
-                       "X-Requested-With": "XMLHttpRequest"}
-
-        await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
-
-
-        if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2 or int(allData["addressbook"]["result"]["status"]) == 3:
-            allData["online"] = True
-            await getRaw(hass, headersData, allData, deviceID)
-            await getReport(hass, headersData, allData, deviceID)
-            await getReportDailyGeneration(hass, headersData, allData, deviceID)
-        else:
-            _LOGGER.debug("Inverter is off-line, not fetching addictional data")
-
-        _LOGGER.debug(allData)
-
+        _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
+        # create new foxess token, each time an update is triggered.
+        authenticationMethod = authenticate( 
+                                                 hass, 
+                                                 username, 
+                                                 hashedPassword)
+        # Get the data with token as parameter
+        await getData(authenticationMethod, hass, allData, deviceID)
         return allData
+
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -167,7 +148,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     if not coordinator.last_update_success:
         _LOGGER.error(
-            "FoxESS Cloud initializaction failed, fix error and restar ha")
+            "FoxESS Cloud initializaction failed, fix error and restart ha")
         return False
 
     async_add_entities([
@@ -221,6 +202,132 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     ])
 
 
+async def authenticate( hass, username, hashedPassword):
+    _LOGGER.debug("authenticating")
+    authToken = None
+    maxAuthRetries = 5
+    authRetries = 0
+    authSleepTime = 10
+    while authToken is None and (authRetries < maxAuthRetries):
+        # from the second retry we first sleep a bit.
+        if authRetries > 0:
+            _LOGGER.debug(f"Could not authenticate retrying {authRetries} out of {maxAuthRetries} times")
+            await asyncio.sleep(authSleepTime)
+        authToken = await authAndgetToken(hass, username, hashedPassword)
+        authRetries += 1
+
+    if authToken is None:
+        _LOGGER.error(f"Could not authenticate to foxess after {maxAuthRetries} retries")
+        return False
+    else: 
+        return authToken
+
+
+async def getData(authenticationMethod, hass, allData, deviceID):
+    user_agent = user_agent_rotator.get_random_user_agent()
+    addressbook = {
+            "addressbook": {}
+                    }
+    raw = {"raw": {}
+           }
+    report = {"report": {}
+              }
+    reportDailyGeneration = {
+            "reportDailyGeneration": {}
+            }
+    global tokenExpired
+    global token
+
+    if tokenExpired:
+            token = None
+            token = await authenticationMethod
+            if token is not None:
+                tokenExpired = False
+
+        
+    if not tokenExpired:
+        headersData = {"token": token,
+                       "User-Agent": user_agent,
+                       "Accept": "application/json, text/plain, */*",
+                       "lang": "en",
+                       "sec-ch-ua-platform": "macOS",
+                       "Sec-Fetch-Site": "same-origin",
+                       "Sec-Fetch-Mode": "cors",
+                       "Sec-Fetch-Dest": "empty",
+                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                       "Connection": "keep-alive",
+                       "X-Requested-With": "XMLHttpRequest"}
+        # try to get the adressdata, result can be that the token is expired. 
+        # there should be another way to check if token is expired or not. but unfamilier with the Foxess API
+        # This method sets the tokenexpired state 
+        await getAddresbook(hass,
+                            headersData, 
+                            addressbook, 
+                            deviceID)
+        # check after datafetch of token is expired or not, and if so auth retry fetch
+        if tokenExpired:
+            _LOGGER.debug("auth token was expired, reauthenticating ")
+            token = None
+            token = await authenticationMethod
+            if token is not None:
+                tokenExpired = False
+                # update header with new token 
+                # possible that this is not required if the token is byref and not Byval( but i knw to little on python for that)
+                headersData = {"token": token,
+                       "User-Agent": user_agent,
+                       "Accept": "application/json, text/plain, */*",
+                       "lang": "en",
+                       "sec-ch-ua-platform": "macOS",
+                       "Sec-Fetch-Site": "same-origin",
+                       "Sec-Fetch-Mode": "cors",
+                       "Sec-Fetch-Dest": "empty",
+                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                       "Connection": "keep-alive",
+                       "X-Requested-With": "XMLHttpRequest"}
+       
+                _LOGGER.debug("Obtained new token, retry adressbook data fetch")
+                await getAddresbook(hass,
+                            headersData, 
+                            addressbook, 
+                            deviceID)
+
+            
+        _LOGGER.debug(allData)
+        if addressbook["addressbook"]:
+            if int(addressbook["addressbook"]["result"]["status"]) == 1 or int(addressbook["addressbook"]["result"]["status"]) == 2 or int(addressbook["addressbook"]["result"]["status"]) == 3:
+                allData["online"] = True
+                t1 = hass.async_create_task(getRaw( 
+                                                hass, 
+                                                headersData, 
+                                                raw, 
+                                                deviceID))
+                t2 = hass.async_create_task(getReport( 
+                                                hass, 
+                                                headersData, 
+                                                report, 
+                                                deviceID))
+                t3 = hass.async_create_task(getReportDailyGeneration( 
+                                                                hass, 
+                                                                headersData, 
+                                                                reportDailyGeneration, 
+                                                                deviceID))
+                
+                # tasks = [t1, t2, t3]
+                await t1
+                await t2
+                await t3
+                allData["addressbook"] = addressbook["addressbook"]
+                allData["raw"] = raw["raw"]
+                allData["report"] = report["report"]
+                allData["reportDailyGeneration"] = reportDailyGeneration["reportDailyGeneration"]
+            else:
+                _LOGGER.debug("Inverter is off-line, not fetching addictional data")
+    else:
+        raise UpdateFailed(
+                f"Token is none - not authenticated - cannot fetch data")
+
 async def authAndgetToken(hass, username, hashedPassword):
 
     #https://github.com/macxq/foxess-ha/issues/93#issuecomment-1319326849
@@ -239,70 +346,69 @@ async def authAndgetToken(hass, username, hashedPassword):
                    "Connection": "keep-alive",
                     "X-Requested-With": "XMLHttpRequest"}
 
-    restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
                         headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
 
-    await restAuth.async_update()
-
-    if restAuth.data is None:
-        _LOGGER.error("Unable to login to FoxESS Cloud - No data recived")
+    
+    if response is None:
+        _LOGGER.error("Unable to login to FoxESS Cloud - No data received")
         return False
 
-    response = json.loads(restAuth.data)
+    json_response = json.loads(response)
 
-    if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41807:
+    if json_response["result"] is None:
+        if json_response["errno"] is not None and json_response["errno"] == 41807:
             raise UpdateFailed(
-                f"Unable to login to FoxESS Cloud - bad username or password! {restAuth.data}")
+                f"Unable to login to FoxESS Cloud - bad username or password! {response}")
         else:
             raise UpdateFailed(
-                f"Error communicating with API: {restAuth.data}")
+                f"Error communicating with API: {response}")
     else:
-        _LOGGER.debug("Login succesfull" + restAuth.data)
+        _LOGGER.debug("Login succesfull" + response)
 
-    token = response["result"]["token"]
-    return token
+    return json_response["result"]["token"]
 
 
-async def getAddresbook(hass, headersData, allData, deviceID,username, hashedPassword,tokenRefreshRetrys):
-    restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-    await restAddressBook.async_update()
-
-    if restAddressBook.data is None:
+async def getAddresbook(hass, headersData, allData, deviceID):
+    response = await async_getRestData(hass,
+                                       METHOD_GET,
+                                       _ENDPOINT_ADDRESSBOOK + deviceID,
+                                       DEFAULT_ENCODING,
+                                       None,
+                                       headersData,
+                                       None,
+                                       None,
+                                       DEFAULT_VERIFY_SSL,
+                                       SSLCipherList.PYTHON_DEFAULT)
+    if response is None:
         _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
         return False
     else:
-        response = json.loads(restAddressBook.data)
-        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
-                global token
-                _LOGGER.debug(f"Token has expired, re-authenticating {tokenRefreshRetrys}")
-                token = None
-        else:
-            _LOGGER.debug(
-                "FoxESS Addressbook data fetched correctly "+restAddressBook.data)
-            allData['addressbook'] = response
+        json_response = json.loads(response)
+        if json_response["errno"] is not None and (json_response["errno"] == 41809 or json_response["errno"] == 41808):
+            _LOGGER.debug("Token has expired")
+            global tokenExpired
+            tokenExpired = True
+        _LOGGER.debug(
+            "FoxESS Addressbook data fetched correctly " + response)
+        allData['addressbook'] = json_response
+
 
 async def getReport(hass, headersData, allData, deviceID):
     now = datetime.now()
-
-
     reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
 
-    restReport = RestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_REPORT,DEFAULT_ENCODING,
                           None, headersData, None, reportData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-
-    await restReport.async_update()
-
-    if restReport.data is None:
+    if response is None:
         _LOGGER.error("Unable to get Report data from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS Report data fetched correctly " +
-                      restReport.data[:150] + " ... ")
+                      response[:150] + " ... ")
 
-        for item in json.loads(restReport.data)['result']:
+        for item in json.loads(response)['result']:
             variableName = item['variable']
             allData['report'][variableName] = None
             # Daily reports break down the data hour by hour for the whole day
@@ -320,7 +426,7 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
     generationData = ('{"deviceID":"' + deviceID + '","reportType": "month",' + '"variables": ["generation"],' + '"queryDate": {' + '"year":' + now.strftime(
         "%Y") + ',"month":' + now.strftime("%_m") + ',"day":' + now.strftime("%_d") + ',"hour":' + now.strftime("%_H") + "}}")
 
-    restGeneration = RestData(
+    response = await async_getRestData(
         hass,
         METHOD_POST,
         _ENDPOINT_REPORT,
@@ -332,18 +438,17 @@ async def getReportDailyGeneration(hass, headersData, allData, deviceID):
         DEFAULT_VERIFY_SSL,
         SSLCipherList.PYTHON_DEFAULT
     )
-
-    await restGeneration.async_update()
-
-    if restGeneration.data is None:
+        
+   
+    if response is None:
         _LOGGER.error("Unable to get daily generation from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS daily generation data fetched correctly " +
-                      restGeneration.data)
+                      response)
 
-        parsed = json.loads(restGeneration.data)["result"]
-        allData["reportDailyGeneration"] = parsed[0]["data"][int(
+        parsed = json.loads(response)["result"]
+        allData["reportDailyGeneration"]= parsed[0]["data"][int(
             now.strftime("%d")) - 1]
 
 
@@ -353,22 +458,74 @@ async def getRaw(hass, headersData, allData, deviceID):
     rawData = '{"deviceID":"'+deviceID+'","variables":["ambientTemperation","batChargePower","batCurrent","batDischargePower","batTemperature","batVolt","boostTemperation","chargeEnergyToTal","chargeTemperature","dischargeEnergyToTal","dspTemperature","epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT","feedin","feedin2","feedinPower","generation","generationPower","gridConsumption","gridConsumption2","gridConsumptionPower","input","invBatCurrent","invBatPower","invBatVolt","invTemperation","loads","loadsPower","loadsPowerR","loadsPowerS","loadsPowerT","meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor","pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt","pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower","RCurrent","ReactivePower","RFreq","RPower","RVolt","SCurrent","SFreq","SoC","SPower","SVolt","TCurrent","TFreq","TPower","TVolt"],"timespan":"hour","beginDate":{"year":'+now.strftime(
         "%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+'}}'
 
-    restRaw = RestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
+    response = await async_getRestData(hass, METHOD_POST, _ENDPOINT_RAW,DEFAULT_ENCODING,
                        None, headersData, None, rawData, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-    await restRaw.async_update()
-
-    if restRaw.data is None:
+    
+    if response is None:
         _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
         return False
     else:
         _LOGGER.debug("FoxESS Raw data fetched correctly " +
-                      restRaw.data[:150] + " ... ")
+                      response[:150] + " ... ")
         allData['raw'] = {}
-        for item in json.loads(restRaw.data)['result']:
+        for item in json.loads(response)['result']:
             variableName = item['variable']
             # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
             if item["data"]:
                 allData['raw'][variableName] = item["data"].pop().get("value",None)
+
+
+async def async_getRestData(hass, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher):
+    # some threading magic here to execute the api request async
+    pipeline = Thead_pipeline()
+    x = threading.Thread(target=getRestData, args=(pipeline, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher))
+    x.start()
+    x.join()
+    data = pipeline.get_data()
+    _LOGGER.debug(f"pipeline data after thread join { data}")
+    return data
+   
+
+def getRestData(thread_pipeline, method, endpoint_url, encoding, unknwParam1, header, unknwParam2, jsonData, verifyssl, sslCipher):
+    match method:
+        case "GET":
+            response  =  requests.api.get(endpoint_url,
+                                    headers=header,
+                                    verify=verifyssl)
+            _LOGGER.debug(f"response from API get method: { response.text}")
+            thread_pipeline.set_data( response.text)
+        case "POST":
+            response  = requests.api.post(endpoint_url,
+                                     data=jsonData,
+                                     headers=header,
+                                     verify=verifyssl)
+            _LOGGER.debug(f"response from API post method: { response.text}")
+            
+            thread_pipeline.set_data( response.text)
+            
+
+class Thead_pipeline:
+    """
+    Class to allow a single element pipeline between producer and consumer.
+    """
+    def __init__(self):
+        self.data = None
+        self.producer_lock = threading.Lock()
+        self.consumer_lock = threading.Lock()
+        self.consumer_lock.acquire()
+
+    def get_data(self):
+        self.consumer_lock.acquire()
+        data = self.data
+        _LOGGER.debug(f"Getting data from pipeline { data}")
+        self.producer_lock.release()
+        return data
+
+    def set_data(self, data):
+        self.producer_lock.acquire()
+        _LOGGER.debug(f"setting data in pipeline { data}")
+        self.data = data
+        self.consumer_lock.release()
 
 
 class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
@@ -1249,7 +1406,7 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
+            if self.coordinator.data["reportDailyGeneration"] == 0:
                 energygenerated = None
             else:
                 energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
