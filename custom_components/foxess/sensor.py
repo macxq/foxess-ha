@@ -1466,7 +1466,7 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
 
 class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
 
-    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
 
