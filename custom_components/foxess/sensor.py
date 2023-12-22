@@ -106,7 +106,7 @@ async def async_get_headers(url_path, token):
     lang = "en"
     path = url_path
     path = path.replace("https://www.foxesscloud.com","")
-    timestamp = str(int(time.time()))
+    timestamp = str(int(time.time() * 1000))
     hashsignature = path + "\\r\\n" + token + "\\r\\n" + lang + "\\r\\n" + timestamp
     signature = hashlib.md5(hashsignature.encode()).hexdigest() + ".5245784"
     headersData = {"token": token,
@@ -250,7 +250,7 @@ async def authAndgetToken(hass, username, hashedPassword):
     lang = "en"
     path = _ENDPOINT_AUTH
     path = path.replace("https://www.foxesscloud.com","")
-    timestamp = str(int(time.time()))
+    timestamp = str(int(time.time() * 1000))
     hashsignature = path + "\\r\\n" + token + "\\r\\n" + lang + "\\r\\n" + timestamp
     signature = hashlib.md5(hashsignature.encode()).hexdigest() + ".5245784"
     headersAuth = {"User-Agent": user_agent,
