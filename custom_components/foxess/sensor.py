@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 import json
 import hashlib
+import time
 
 import voluptuous as vol
 
@@ -100,6 +101,31 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 token = None
 
+async def async_get_headers(url_path, token):
+    user_agent = user_agent_rotator.get_random_user_agent()
+    lang = "en"
+    path = url_path
+    path = path.replace("https://www.foxesscloud.com","")
+    timestamp = str(int(time.time()))
+    hashsignature = path + "\\r\\n" + token + "\\r\\n" + lang + "\\r\\n" + timestamp
+    signature = hashlib.md5(hashsignature.encode()).hexdigest() + ".5245784"
+    headersData = {"token": token,
+                    "User-Agent": user_agent,
+                    "Accept": "application/json, text/plain, */*",
+                    "lang": lang,
+                    "Timezone": "Europe/Berlin",
+                    "Timestamp": timestamp,
+                    "Signature": signature,
+                    "sec-ch-ua-platform": "macOS",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Dest": "empty",
+                    "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
+                    "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
+                    "Connection": "keep-alive",
+                    "X-Requested-With": "XMLHttpRequest"}
+    return headersData
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
     name = config.get(CONF_NAME)
@@ -124,27 +150,20 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             _LOGGER.debug("Token is empty, authenticating for the firts time")
             token = await authAndgetToken(hass, username, hashedPassword)
 
-        user_agent = user_agent_rotator.get_random_user_agent()
-        headersData = {"token": token,
-                       "User-Agent": user_agent,
-                       "Accept": "application/json, text/plain, */*",
-                       "lang": "en",
-                       "sec-ch-ua-platform": "macOS",
-                       "Sec-Fetch-Site": "same-origin",
-                       "Sec-Fetch-Mode": "cors",
-                       "Sec-Fetch-Dest": "empty",
-                       "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                       "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                       "Connection": "keep-alive",
-                       "X-Requested-With": "XMLHttpRequest"}
-
+        headersData = await async_get_headers(_ENDPOINT_ADDRESSBOOK, token)  
         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
 
 
         if int(allData["addressbook"]["result"]["status"]) == 1 or int(allData["addressbook"]["result"]["status"]) == 2 or int(allData["addressbook"]["result"]["status"]) == 3:
             allData["online"] = True
+            
+            headersData = await async_get_headers(_ENDPOINT_RAW, token)
             await getRaw(hass, headersData, allData, deviceID)
+            
+            headersData = await async_get_headers(_ENDPOINT_REPORT, token)
             await getReport(hass, headersData, allData, deviceID)
+            
+            headersData = await async_get_headers(_ENDPOINT_REPORT, token)
             await getReportDailyGeneration(hass, headersData, allData, deviceID)
         else:
             _LOGGER.debug("Inverter is off-line, not fetching addictional data")
@@ -227,9 +246,19 @@ async def authAndgetToken(hass, username, hashedPassword):
 #    payloadAuth = {"user": username, "password": hashedPassword}
     payloadAuth = f'user={username}&password={hashedPassword}'
     user_agent = user_agent_rotator.get_random_user_agent()
+    token = ""
+    lang = "en"
+    path = _ENDPOINT_AUTH
+    path = path.replace("https://www.foxesscloud.com","")
+    timestamp = str(int(time.time()))
+    hashsignature = path + "\\r\\n" + token + "\\r\\n" + lang + "\\r\\n" + timestamp
+    signature = hashlib.md5(hashsignature.encode()).hexdigest() + ".5245784"
     headersAuth = {"User-Agent": user_agent,
                    "Accept": "application/json, text/plain, */*",
                    "lang": "en",
+                   "Timezone": "Europe/Berlin",
+                   "Timestamp": timestamp,
+                   "Signature": signature,                  
                    "sec-ch-ua-platform": "macOS",
                    "Sec-Fetch-Site": "same-origin",
                    "Sec-Fetch-Mode": "cors",
