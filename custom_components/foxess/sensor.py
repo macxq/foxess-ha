@@ -135,7 +135,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                        "Sec-Fetch-Dest": "empty",
                        "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
                        "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                       "Connection": "keep-alive",
+                       "Connection": "close",
                        "X-Requested-With": "XMLHttpRequest"}
 
         await getAddresbook(hass, headersData, allData, deviceID, username, hashedPassword,0)
@@ -236,7 +236,7 @@ async def authAndgetToken(hass, username, hashedPassword):
                    "Sec-Fetch-Dest": "empty",
                    "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
                    "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                   "Connection": "keep-alive",
+                   "Connection": "close",
                     "X-Requested-With": "XMLHttpRequest"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
