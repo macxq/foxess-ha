@@ -29,9 +29,15 @@ sensor:
     username: foxesscloud_username
     password: foxesscloud_password
     deviceID: foxesscloud_inverter_id
+    deviceSN: foxesscloud_inverter_serial_number
+    apiKey: foxesscloud_personal_api_key
 ```
 
 #### Auxiliary notes:
+- `foxesscloud_inverter_serial_number` is the serial number of the inverter this integration will be gathering data from, you can see the deviceSN by logging into the Foxesscloud.com website, in the left hand menu click on 'Device', then 'Inverter' this will display a table and your Inverter SN - the format will be similar to : 60BHnnnnnnXnnn - copy and paste this into the config setting deviceSN: replacing the text `foxesscloud_inverter_serial_number`
+
+- `foxesscloud_personal_api_key` is a personal api_key that is generated in your profile seection of your Foxesscloud account. To do this log into the Foxesscloud.com website, click on the profile icon in the top right corner and select 'User Profile', then on the menu select 'API Management' and click 'Generate API Key, the long string that it generates should be copied and pasted into the config setting apiKey: replacing the text `foxesscloud_personal_api_key` above.
+
 - `foxesscloud_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page.
 ⚠️  Please make sure that this is exact value from inverter details page address between = and & character:
 ![Screenshot 2021-11-08 at 08 42 05](https://user-images.githubusercontent.com/2965092/140761535-edb12226-b2b8-4f2b-87ce-11b67476a9e2.png)
