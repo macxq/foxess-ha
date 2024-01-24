@@ -467,7 +467,7 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
 
     now = datetime.now()
 
-    reportData = '{"sn":"'+deviceSN+'","year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"dimension":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
+    reportData = '{"sn":"'+deviceSN+'","year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
     _LOGGER.debug("getReport OA request:" + reportData) 
 
     restOAReport = RestData(
@@ -530,15 +530,19 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
         if response["errno"] == 0 and response["msg"] == 'success' :
             _LOGGER.debug(f"OA Report Data fetched OK: {response} "+ restOAReport.data[:350])
             result = json.loads(restOAReport.data)['result']
-            # allData['report'] = {}
-            for item in result: # json.loads(result): 
+            today = int(now.strftime("%_d")) # need today as an integer to locate in the monthly report index
+            for item in result: 
                 variableName = item['variable']
-                allData['report'][variableName] = None
-                # Daily reports break down the data hour by hour for the whole day even if we're only
-                # partially through, so sum the values together to get our daily total so far...
+                # Daily reports break down the data hour by month for each day
+                # so locate the current days index and use that as the sum
+                index = 1
                 cumulative_total = 0
                 for dataItem in item['values']:
-                    cumulative_total += dataItem
+                    if today==index: # we're only interested in the total for today
+                        cumulative_total = dataItem
+                        break
+                    index+=1
+                    #cumulative_total += dataItem
                 allData['report'][variableName] = round(cumulative_total,3)
                 _LOGGER.debug(f"OA Report Variable: {variableName}, Total: {cumulative_total}")
             return False
@@ -630,19 +634,14 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
     # "deviceSN" used for OpenAPI and it only fetches the real time data
     rawData =  '{"sn":"'+deviceSN+'","variables":["ambientTemperation", \
                                     "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
-                                    "boostTemperation", \
-                                    "chargeEnergyToTal", "chargeTemperature", "dischargeEnergyToTal", \
-                                    "dspTemperature", \
-                                    "epsCurrentR","epsCurrentS","epsCurrentT", \
-                                    "epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
-                                    "feedin", "feedinPower", \
-                                    "generation","generationPower","gridConsumption","gridConsumptionPower", \
-                                    "input", "invBatCurrent","invBatPower","invBatVolt","invTemperation", \
-                                    "loads", "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
+                                    "boostTemperation", "chargeTemperature", "dspTemperature", \
+                                    "epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
+                                    "feedinPower", "generationPower","gridConsumptionPower", \
+                                    "input","invBatCurrent","invBatPower","invBatVolt","invTemperation", \
+                                    "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
                                     "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
                                     "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
-                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt", \
-                                    "pvPower", \
+                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower", \
                                     "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
                                     "SCurrent","SFreq","SoC","SPower","SVolt", \
                                     "TCurrent","TFreq","TPower","TVolt", \
@@ -677,19 +676,14 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
 
             rawData =  '{"deviceID":"'+deviceID+'","variables":["ambientTemperation", \
                                     "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
-                                    "boostTemperation", \
-                                    "chargeEnergyToTal", "chargeTemperature", "dischargeEnergyToTal", \
-                                    "dspTemperature", \
-                                    "epsCurrentR","epsCurrentS","epsCurrentT", \
-                                    "epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR", "epsVoltS", "epsVoltT", \
-                                    "feedin", "feedinPower", \
-                                    "generation","generationPower","gridConsumption","gridConsumptionPower", \
-                                    "input", "invBatCurrent","invBatPower","invBatVolt","invTemperation", \
-                                    "loads", "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
+                                    "boostTemperation", "chargeTemperature","dspTemperature", \
+                                    "epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
+                                    "feedinPower","generationPower","gridConsumptionPower", \
+                                    "input","invBatCurrent","invBatPower","invBatVolt","invTemperation", \
+                                    "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
                                     "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
                                     "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
-                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt", \
-                                    "pvPower", \
+                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower", \
                                     "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
                                     "SCurrent","SFreq","SoC","SPower","SVolt", \
                                     "TCurrent","TFreq","TPower","TVolt"], \
