@@ -116,7 +116,7 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour
+    global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery
     name = config.get(CONF_NAME)
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
@@ -129,6 +129,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug( f"FoxESS Scan Interval: {SCAN_MINUTES} minutes" )
     TimeSlice = RETRY_NEXT_SLOT
     LastHour = 0
+    hasBattery = True
     allData = {
         "report":{},
         "reportDailyGeneration": {},
@@ -178,12 +179,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     _LOGGER.debug("FoxESS old cloud API Addressbook data read ok")
 
             # try the openapi see if we get a response
-            if TimeSlice==0:
-                # do this at startup and then every 15 minutes
-                _LOGGER.debug("Battery settings read")
-                addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings, not sure what to do with these yet, poll every 5/15/30/60 mins ?
-                await asyncio.sleep(1)  # delay for OpenAPI between api calls
-
             addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
             if addfail == 0:
                 if allData["addressbook"]["status"] is not None:
@@ -194,6 +189,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 
                 if statetest in [1,2,3]:
                     allData["online"] = True
+                    if TimeSlice==0:
+                        # do this at startup and then every 15 minutes
+                        addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings, not sure what to do with these yet, poll every 5/15/30/60 mins ?
+                        await asyncio.sleep(1)  # delay for OpenAPI between api calls
+                    # main real time data fetch, followed by reports
                     getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
                         if TimeSlice==0 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
@@ -207,9 +207,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                                     getError = await getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID)
                                     if getError == True:
                                         allData["online"] = False
+                                        TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                                         _LOGGER.debug("getReportDailyGeneration False")
                             else:
                                 allData["online"] = False
+                                TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                                 _LOGGER.debug("getReport False")
 
                     else:
@@ -399,6 +401,7 @@ async def getAddresbook(hass, headersData, allData, username, hashedPassword, de
             return 1
 
 async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
+    global hasBattery
 
     path = "/op/v0/device/detail"
     headerData = GetAuth().get_signature(token=apiKey, path=path)
@@ -421,7 +424,13 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
             # manually poke this in as on the old cloud it was called plantname, need to keep in line with old entity name
             plantName = result['stationName']
             allData['addressbook']['plantName'] = plantName
-
+            testBattery = result['hasBattery']
+            if testBattery:
+                _LOGGER.debug(f"OA Device Detail System has Battery: {hasBattery}")
+                hasBattery = True
+            else:
+                _LOGGER.debug(f"OA Device Detail System has No Battery: {hasBattery}")
+                hasBattery = False
             return False
         else:
             _LOGGER.error(f"OA Device Detail Bad Response: {response}")
@@ -433,28 +442,35 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_BATTERY_SETTINGS
-    _LOGGER.debug("OABattery Settings fetch " + path + deviceSN)
 
-    restOABatterySettings = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
-    await restOABatterySettings.async_update()
+    if hasBattery:
+        # only make this call if device detail reports battery fitted
+        _LOGGER.debug("OABattery Settings fetch " + path + deviceSN)
+        restOABatterySettings = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+        await restOABatterySettings.async_update()
 
-    if restOABatterySettings.data is None:
-        _LOGGER.error("Unable to get OA Battery Settings from FoxESS Cloud")
-        return True
-    else:
-        response = json.loads(restOABatterySettings.data)
-        if response["errno"] == 0 and response["msg"] == 'success' :
-            _LOGGER.debug(f"OA Battery Settings Good Response: {response['result']}")
-            result = response['result']
-            minSoc = result['minSoc']
-            minSocOnGrid = result['minSocOnGrid']
-            allData["battery"]["minSoc"] = minSoc
-            allData["battery"]["minSocOnGrid"] = minSocOnGrid
-            _LOGGER.debug(f"OA Battery Settings read MinSoc: {minSoc}, MinSocOnGrid: {minSocOnGrid}")
-            return False
-        else:
-            _LOGGER.error(f"OA Battery Settings Bad Response: {response}")
+        if restOABatterySettings.data is None:
+            _LOGGER.error("Unable to get OA Battery Settings from FoxESS Cloud")
             return True
+        else:
+            response = json.loads(restOABatterySettings.data)
+            if response["errno"] == 0 and response["msg"] == 'success' :
+                _LOGGER.debug(f"OA Battery Settings Good Response: {response['result']}")
+                result = response['result']
+                minSoc = result['minSoc']
+                minSocOnGrid = result['minSocOnGrid']
+                allData["battery"]["minSoc"] = minSoc
+                allData["battery"]["minSocOnGrid"] = minSocOnGrid
+                _LOGGER.debug(f"OA Battery Settings read MinSoc: {minSoc}, MinSocOnGrid: {minSocOnGrid}")
+                return False
+            else:
+                _LOGGER.error(f"OA Battery Settings Bad Response: {response}")
+                return True
+    else:
+        # device detail reports no battery fitted so reset these variables to show unknown
+        allData["battery"]["minSoc"] = None
+        allData["battery"]["minSocOnGrid"] = None
+        return False
 
 
 async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
