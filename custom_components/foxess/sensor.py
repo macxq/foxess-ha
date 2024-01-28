@@ -116,7 +116,7 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery
+    global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery, last_api
     name = config.get(CONF_NAME)
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
@@ -128,6 +128,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug("Device ID:" + deviceID)
     _LOGGER.debug( f"FoxESS Scan Interval: {SCAN_MINUTES} minutes" )
     TimeSlice = RETRY_NEXT_SLOT
+    last_api = 0
     LastHour = 0
     hasBattery = True
     allData = {
@@ -192,18 +193,15 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     if TimeSlice==0:
                         # do this at startup and then every 15 minutes
                         addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings, not sure what to do with these yet, poll every 5/15/30/60 mins ?
-                        await asyncio.sleep(1)  # delay for OpenAPI between api calls
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
                         if TimeSlice==0 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
                             LastHour = hournow # update the hour the last report was run
-                            await asyncio.sleep(1)  # delay for OpenAPI between api calls
                             getError = await getReport(hass, headersData, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
                                 if TimeSlice==0:
                                     # do this at startup, then every 15 minutes
-                                    await asyncio.sleep(1)  # delay for OpenAPI between api calls
                                     getError = await getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID)
                                     if getError == True:
                                         allData["online"] = False
@@ -338,6 +336,21 @@ class GetAuth:
             return res.upper()
 
 
+async def waitforAPI():
+    global last_api
+    # wait for openAPI, there is a minimum of 1 second allowed between OpenAPI query calls
+    # check if last_api call was less than a second ago and if so delay the balance of 1 second
+    now = time.time()
+    last = last_api
+    diff = now - last if last != 0 else 1
+    diff = round(diff,2)
+    if diff < 1:
+        await asyncio.sleep(diff)
+        _LOGGER.debug(f"API enforced delay, wait: {diff}")
+    now = time.time()
+    last_api = now
+    return False
+
 async def authAndgetToken(hass, username, hashedPassword):
 
     payloadAuth = f'user={username}&password={hashedPassword}'
@@ -403,6 +416,8 @@ async def getAddresbook(hass, headersData, allData, username, hashedPassword, de
 async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
     global hasBattery
 
+    await waitforAPI()
+
     path = "/op/v0/device/detail"
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
@@ -438,11 +453,12 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
 
 async def getOABatterySettings(hass, allData, deviceSN, apiKey):
 
+    await waitforAPI() # check for api delay
+
     path = "/op/v0/device/battery/soc/get"
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_BATTERY_SETTINGS
-
     if hasBattery:
         # only make this call if device detail reports battery fitted
         _LOGGER.debug("OABattery Settings fetch " + path + deviceSN)
@@ -474,6 +490,8 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
 
 
 async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
+
+    await waitforAPI() # check for api delay
 
     path = _ENDPOINT_OA_REPORT
     headerData = GetAuth().get_signature(token=apiKey, path=path)
@@ -567,8 +585,10 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
 
 
 async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID):
-    now = datetime.now()
 
+    await waitforAPI() # check for api delay
+
+    now = datetime.now()
     path = "/op/v0/device/generation"
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
@@ -643,6 +663,8 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
 
 
 async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
+
+    await waitforAPI() # check for api delay
 
     path = _ENDPOINT_OA_DEVICE_VARIABLES
     headerData = GetAuth().get_signature(token=apiKey, path=path)
