@@ -74,6 +74,7 @@ METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 TRY_OLD_CLOUD_API = False
+DEFAULT_TIMEOUT = 20 # double the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -192,7 +193,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     allData["online"] = True
                     if TimeSlice==0:
                         # do this at startup and then every 15 minutes
-                        addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings, not sure what to do with these yet, poll every 5/15/30/60 mins ?
+                        addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings where fitted, poll every 15 mins
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
@@ -368,7 +369,7 @@ async def authAndgetToken(hass, username, hashedPassword):
                     "X-Requested-With": "XMLHttpRequest"}
 
     restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
-                        headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+                        headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
 
     await restAuth.async_update()
 
@@ -394,7 +395,7 @@ async def authAndgetToken(hass, username, hashedPassword):
 
 async def getAddresbook(hass, headersData, allData, username, hashedPassword, deviceID):
     restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
     await restAddressBook.async_update()
 
     if restAddressBook.data is None:
@@ -424,11 +425,11 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_DETAIL
     _LOGGER.debug("OADevice Detail fetch " + path + deviceSN)
 
-    restOADeviceDetail = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+    restOADeviceDetail = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
     await restOADeviceDetail.async_update()
 
     if restOADeviceDetail.data is None or restOADeviceDetail.data == '':
-        _LOGGER.error("Unable to get OA Device Detail from FoxESS Cloud")
+        _LOGGER.warning("Unable to get OA Device Detail from FoxESS Cloud")
         return True
     else:
         response = json.loads(restOADeviceDetail.data)
@@ -448,7 +449,7 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
                 hasBattery = False
             return False
         else:
-            _LOGGER.error(f"OA Device Detail Bad Response: {response}")
+            _LOGGER.warning(f"OA Device Detail Bad Response: {response}")
             return True
 
 async def getOABatterySettings(hass, allData, deviceSN, apiKey):
@@ -462,11 +463,11 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
     if hasBattery:
         # only make this call if device detail reports battery fitted
         _LOGGER.debug("OABattery Settings fetch " + path + deviceSN)
-        restOABatterySettings = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT)
+        restOABatterySettings = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
         await restOABatterySettings.async_update()
 
         if restOABatterySettings.data is None:
-            _LOGGER.error("Unable to get OA Battery Settings from FoxESS Cloud")
+            _LOGGER.warning("Unable to get OA Battery Settings from FoxESS Cloud")
             return True
         else:
             response = json.loads(restOABatterySettings.data)
@@ -480,7 +481,7 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
                 _LOGGER.debug(f"OA Battery Settings read MinSoc: {minSoc}, MinSocOnGrid: {minSocOnGrid}")
                 return False
             else:
-                _LOGGER.error(f"OA Battery Settings Bad Response: {response}")
+                _LOGGER.warning(f"OA Battery Settings Bad Response: {response}")
                 return True
     else:
         # device detail reports no battery fitted so reset these variables to show unknown
@@ -514,13 +515,14 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
         None, 
         reportData, 
         DEFAULT_VERIFY_SSL, 
-        SSLCipherList.PYTHON_DEFAULT
+        SSLCipherList.PYTHON_DEFAULT,
+        DEFAULT_TIMEOUT
     )
 
     await restOAReport.async_update()
 
     if restOAReport.data is None or restOAReport.data == '':
-        _LOGGER.error("Unable to get OA Report from FoxESS Cloud")
+        _LOGGER.warning("Unable to get OA Report from FoxESS Cloud")
         # try the old cloud
         if TRY_OLD_CLOUD_API:
             now = datetime.now()
@@ -537,13 +539,14 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
                 None, 
                 reportData, 
                 DEFAULT_VERIFY_SSL, 
-                SSLCipherList.PYTHON_DEFAULT
+                SSLCipherList.PYTHON_DEFAULT,
+                DEFAULT_TIMEOUT
             )
 
             await restReport.async_update()
 
             if restReport.data is None:
-                _LOGGER.error("Unable to get Report data from FoxESS Cloud")
+                _LOGGER.warning("Unable to get Report data from FoxESS Cloud")
                 return True
             else:
                 _LOGGER.debug("FoxESS Report data fetched correctly " + restReport.data[:350] + " ... ")
@@ -581,7 +584,7 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
                 _LOGGER.debug(f"OA Report Variable: {variableName}, Total: {cumulative_total}")
             return False
         else:
-            _LOGGER.error(f"OA Report Bad Response: {response} "+ restOAReport.data)
+            _LOGGER.warning(f"OA Report Bad Response: {response} "+ restOAReport.data)
 
 
 async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID):
@@ -609,13 +612,14 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
         None, 
         generationData, 
         DEFAULT_VERIFY_SSL, 
-        SSLCipherList.PYTHON_DEFAULT
+        SSLCipherList.PYTHON_DEFAULT,
+        DEFAULT_TIMEOUT
     )
 
     await restOAgen.async_update()
 
     if restOAgen.data is None or restOAgen.data == '':
-        _LOGGER.error("Unable to get OA Daily Generation Report from FoxESS Cloud")
+        _LOGGER.warning("Unable to get OA Daily Generation Report from FoxESS Cloud")
         return True
     else:
         response = json.loads(restOAgen.data)
@@ -627,7 +631,7 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
             _LOGGER.debug(f"OA Daily Generation Report data: {parsed} and todays value {parsed['today']} ")
             return False
         else:
-            _LOGGER.error(f"OA Daily Generation Report Bad Response: {response} "+ restOAgen.data)
+            _LOGGER.warning(f"OA Daily Generation Report Bad Response: {response} "+ restOAgen.data)
 
         # try the old cloud
         if TRY_OLD_CLOUD_API:
@@ -646,13 +650,14 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
                 None,
                 generationData,
                 DEFAULT_VERIFY_SSL,
-                SSLCipherList.PYTHON_DEFAULT
+                SSLCipherList.PYTHON_DEFAULT,
+                DEFAULT_TIMEOUT
             )
 
             await restGeneration.async_update()
 
             if restGeneration.data is None:
-                _LOGGER.error("Unable to get daily generation from FoxESS Cloud")
+                _LOGGER.warning("Unable to get daily generation from FoxESS Cloud")
                 return True
             else:
                 _LOGGER.debug("FoxESS daily generation data fetched correctly " + restGeneration.data)
@@ -700,17 +705,18 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
         None, 
         rawData, 
         DEFAULT_VERIFY_SSL, 
-        SSLCipherList.PYTHON_DEFAULT
+        SSLCipherList.PYTHON_DEFAULT,
+        DEFAULT_TIMEOUT
     )
 
     await restOADeviceVariables.async_update()
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == '':
-        _LOGGER.error("Unable to get OA Device Variables from FoxESS Cloud")
+        _LOGGER.warning("Unable to get OA Device Variables from FoxESS Cloud")
         # try the old cloud ?
         if TRY_OLD_CLOUD_API:
             now = datetime.now() - timedelta(minutes=6)
-            _LOGGER.error("GetRaw Fallback to old cloud interface")
+            _LOGGER.warning("GetRaw Fallback to old cloud interface")
 
             rawData =  '{"deviceID":"'+deviceID+'","variables":["ambientTemperation", \
                                     "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
@@ -739,7 +745,8 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
                 None, 
                 rawData, 
                 DEFAULT_VERIFY_SSL, 
-                SSLCipherList.PYTHON_DEFAULT
+                SSLCipherList.PYTHON_DEFAULT,
+                DEFAULT_TIMEOUT
             )
 
             await restRaw.async_update()
@@ -783,7 +790,7 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
                 _LOGGER.debug( f"Variable: {variableName} being set to {allData['raw'][variableName]}" )
             return False
         else:
-            _LOGGER.error(f"OA Device Variables Bad Response: {response}")
+            _LOGGER.warning(f"OA Device Variables Bad Response: {response}")
             return True
             
 #        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
