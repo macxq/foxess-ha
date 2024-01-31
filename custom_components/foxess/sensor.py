@@ -74,7 +74,7 @@ METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 TRY_OLD_CLOUD_API = False
-DEFAULT_TIMEOUT = 20 # double the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 30 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -152,13 +152,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         TimeSlice+=1
         if (TimeSlice % 5 == 0):
             _LOGGER.debug(f"TimeSlice 5 Interval: {TimeSlice}")
-
-            # try old cloud interface - doesn't matter if this fails
-            hashedPassword = hashlib.md5(password.encode()).hexdigest()
-            if token is None:
-                _LOGGER.debug("Token is empty, authenticating")
-                token = await authAndgetToken(hass, username, hashedPassword)
-
+    
             user_agent = USER_AGENT # or use- user_agent_rotator.get_random_user_agent()
             headersData = {"token": token,
                            "User-Agent": user_agent,
@@ -173,7 +167,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                            "Connection": "close",
                            "X-Requested-With": "XMLHttpRequest"}
 
+            # try old cloud interface - doesn't matter if this fails
             if TRY_OLD_CLOUD_API:
+                hashedPassword = hashlib.md5(password.encode()).hexdigest()
+                if token is None:
+                    _LOGGER.debug("Token is empty, authenticating")
+                    token = await authAndgetToken(hass, username, hashedPassword)
+
                 addfail = await getAddresbook(hass, headersData, allData, username, hashedPassword, deviceID)
                 if addfail == 0:
                     _LOGGER.debug("FoxESS old cloud API no Addressbook data, token reset")
