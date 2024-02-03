@@ -27,14 +27,11 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
+    UnitOfElectricPotential,
     UnitOfEnergy,
-    POWER_KILO_WATT,
-    ENERGY_KILO_WATT_HOUR,
-    TEMP_CELSIUS,
-    UnitOfEnergy,
-    ELECTRIC_POTENTIAL_VOLT,
-    ELECTRIC_CURRENT_AMPERE,
-    FREQUENCY_HERTZ,
+    UnitOfFrequency,
+    UnitOfPower,
+    UnitOfTemperature,
     POWER_VOLT_AMPERE_REACTIVE,
 )
 from homeassistant.helpers.update_coordinator import (
@@ -374,7 +371,7 @@ async def getRaw(hass, headersData, allData, deviceID):
 class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -400,7 +397,7 @@ class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -426,7 +423,7 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -452,7 +449,7 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -478,7 +475,7 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -504,7 +501,7 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -530,7 +527,7 @@ class FoxESSPV1Current(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -556,7 +553,7 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -582,7 +579,7 @@ class FoxESSPV1Volt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -608,7 +605,7 @@ class FoxESSPV2Current(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -634,7 +631,7 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -660,7 +657,7 @@ class FoxESSPV2Volt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -686,7 +683,7 @@ class FoxESSPV3Current(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -712,7 +709,7 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -738,7 +735,7 @@ class FoxESSPV3Volt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -764,7 +761,7 @@ class FoxESSPV4Current(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -790,7 +787,7 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -816,7 +813,7 @@ class FoxESSPV4Volt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -842,7 +839,7 @@ class FoxESSPVPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -868,7 +865,7 @@ class FoxESSRCurrent(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -894,7 +891,7 @@ class FoxESSRFreq(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.FREQUENCY
-    _attr_native_unit_of_measurement = FREQUENCY_HERTZ
+    _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -920,7 +917,7 @@ class FoxESSRPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -945,7 +942,7 @@ class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
 
     _attr_state_class = SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -971,7 +968,7 @@ class FoxESSRVolt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -997,7 +994,7 @@ class FoxESSSCurrent(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1023,7 +1020,7 @@ class FoxESSSFreq(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.FREQUENCY
-    _attr_native_unit_of_measurement = FREQUENCY_HERTZ
+    _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1049,7 +1046,7 @@ class FoxESSSPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1075,7 +1072,7 @@ class FoxESSSVolt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1101,7 +1098,7 @@ class FoxESSTCurrent(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = ELECTRIC_CURRENT_AMPERE
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.AMPERE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1127,7 +1124,7 @@ class FoxESSTFreq(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.FREQUENCY
-    _attr_native_unit_of_measurement = FREQUENCY_HERTZ
+    _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1153,7 +1150,7 @@ class FoxESSTPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1179,7 +1176,7 @@ class FoxESSTVolt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = ELECTRIC_POTENTIAL_VOLT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1231,7 +1228,7 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1261,7 +1258,7 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1291,7 +1288,7 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1321,7 +1318,7 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1351,7 +1348,7 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1381,7 +1378,7 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1468,7 +1465,7 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1504,7 +1501,7 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = POWER_KILO_WATT
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1578,7 +1575,7 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
 class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = TEMP_CELSIUS
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1603,7 +1600,7 @@ class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
 class FoxESSAmbientTemp(CoordinatorEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = TEMP_CELSIUS
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1628,7 +1625,7 @@ class FoxESSAmbientTemp(CoordinatorEntity, SensorEntity):
 class FoxESSBoostTemp(CoordinatorEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = TEMP_CELSIUS
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1653,7 +1650,7 @@ class FoxESSBoostTemp(CoordinatorEntity, SensorEntity):
 class FoxESSInvTemp(CoordinatorEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = TEMP_CELSIUS
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
