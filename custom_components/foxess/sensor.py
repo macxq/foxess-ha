@@ -197,12 +197,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
-                        if TimeSlice==0 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
-                            LastHour = hournow # update the hour the last report was run
+                        if TimeSlice==0 or TimeSlice==15 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
+                            if LastHour != hournow:
+                                LastHour = hournow # update the hour the last daily report was run
                             getError = await getReport(hass, headersData, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
                                 if TimeSlice==0:
-                                    # do this at startup, then every 15 minutes
+                                    # do this at startup, then every 30 minutes
                                     getError = await getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID)
                                     if getError == True:
                                         allData["online"] = False
@@ -225,7 +226,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
                 
         # actions here are every minute
-        if TimeSlice==15:
+        if TimeSlice==30:
             TimeSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
         _LOGGER.debug(f"Auxilliary TimeSlice {TimeSlice}")
 
@@ -818,7 +819,10 @@ class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["generationPower"]
+            if "generationPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("generationPower None")
+            else:
+                return self.coordinator.data["raw"]["generationPower"]
         return None
 
 
@@ -844,7 +848,10 @@ class FoxESSGridConsumptionPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["gridConsumptionPower"]
+            if "gridConsumptionPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("gridConsumptionPower None")
+            else:
+                return self.coordinator.data["raw"]["gridConsumptionPower"]
         return None
 
 
@@ -870,7 +877,10 @@ class FoxESSFeedInPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["feedinPower"]
+            if "feedinPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("feedinPower None")
+            else:
+                return self.coordinator.data["raw"]["feedinPower"]
         return None
 
 
@@ -896,7 +906,10 @@ class FoxESSBatDischargePower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["batDischargePower"]
+            if "batDischargePower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("batDischargePower None")
+            else:
+                return self.coordinator.data["raw"]["batDischargePower"]
         return None
 
 
@@ -922,7 +935,10 @@ class FoxESSBatChargePower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["batChargePower"]
+            if "batChargePower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("batChargePower None")
+            else:
+                return self.coordinator.data["raw"]["batChargePower"]
         return None
 
 
@@ -948,7 +964,10 @@ class FoxESSLoadPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["loadsPower"]
+            if "loadsPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("loadsPower None")
+            else:
+                return self.coordinator.data["raw"]["loadsPower"]
         return None
 
 
@@ -974,7 +993,10 @@ class FoxESSPV1Current(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv1Current"]
+            if "pv1Current" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv1Current None")
+            else:
+                return self.coordinator.data["raw"]["pv1Current"]
         return None
 
 
@@ -1000,7 +1022,10 @@ class FoxESSPV1Power(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv1Power"]
+            if "pv1Power" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv1Power None")
+            else:
+                return self.coordinator.data["raw"]["pv1Power"]
         return None
 
 
@@ -1026,7 +1051,10 @@ class FoxESSPV1Volt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv1Volt"]
+            if "pv1Volt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv1Volt None")
+            else:
+                return self.coordinator.data["raw"]["pv1Volt"]
         return None
 
 
@@ -1052,7 +1080,10 @@ class FoxESSPV2Current(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv2Current"]
+            if "pv2Current" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv2Current None")
+            else:
+                return self.coordinator.data["raw"]["pv2Current"]
         return None
 
 
@@ -1078,7 +1109,10 @@ class FoxESSPV2Power(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv2Power"]
+            if "pv2Power" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv2Power None")
+            else:
+                return self.coordinator.data["raw"]["pv2Power"]
         return None
 
 
@@ -1104,7 +1138,10 @@ class FoxESSPV2Volt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv2Volt"]
+            if "pv2Volt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv2Volt None")
+            else:
+                return self.coordinator.data["raw"]["pv2Volt"]
         return None
 
 
@@ -1130,7 +1167,10 @@ class FoxESSPV3Current(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv3Current"]
+            if "pv3Current" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv3Current None")
+            else:
+                return self.coordinator.data["raw"]["pv3Current"]
         return None
 
 
@@ -1156,7 +1196,10 @@ class FoxESSPV3Power(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv3Power"]
+            if "pv3Power" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv3Power None")
+            else:
+                return self.coordinator.data["raw"]["pv3Power"]
         return None
 
 
@@ -1182,7 +1225,10 @@ class FoxESSPV3Volt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv3Volt"]
+            if "pv3Volt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv3Volt None")
+            else:
+                return self.coordinator.data["raw"]["pv3Volt"]
         return None
 
 
@@ -1208,7 +1254,10 @@ class FoxESSPV4Current(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv4Current"]
+            if "pv4Current" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv4Current None")
+            else:
+                return self.coordinator.data["raw"]["pv4Current"]
         return None
 
 
@@ -1234,7 +1283,10 @@ class FoxESSPV4Power(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv4Power"]
+            if "pv4Power" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv4Power None")
+            else:
+                return self.coordinator.data["raw"]["pv4Power"]
         return None
 
 
@@ -1260,7 +1312,10 @@ class FoxESSPV4Volt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pv4Volt"]
+            if "pv4Volt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pv4Volt None")
+            else:
+                return self.coordinator.data["raw"]["pv4Volt"]
         return None
 
 
@@ -1286,7 +1341,10 @@ class FoxESSPVPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["pvPower"]
+            if "pvPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("pvPower None")
+            else:
+                return self.coordinator.data["raw"]["pvPower"]
         return None
 
 
@@ -1312,7 +1370,10 @@ class FoxESSRCurrent(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["RCurrent"]
+            if "RCurrent" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("RCurrent None")
+            else:
+                return self.coordinator.data["raw"]["RCurrent"]
         return None
 
 
@@ -1338,7 +1399,10 @@ class FoxESSRFreq(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["RFreq"]
+            if "RFreq" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("RFreq None")
+            else:
+                return self.coordinator.data["raw"]["RFreq"]
         return None
 
 
@@ -1364,7 +1428,10 @@ class FoxESSRPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["RPower"]
+            if "RPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("RPower None")
+            else:
+                return self.coordinator.data["raw"]["RPower"]
         return None
 
 class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
@@ -1389,7 +1456,10 @@ class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["meterPower2"]
+            if "meterPower2" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("meterPower2 None")
+            else:
+                return self.coordinator.data["raw"]["meterPower2"]
         return None 
 
 
@@ -1415,7 +1485,10 @@ class FoxESSRVolt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["RVolt"]
+            if "RVolt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("RVolt None")
+            else:
+                return self.coordinator.data["raw"]["RVolt"]
         return None
 
 
@@ -1441,7 +1514,10 @@ class FoxESSSCurrent(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["SCurrent"]
+            if "SCurrent" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("SCurrent None")
+            else:
+                return self.coordinator.data["raw"]["SCurrent"]
         return None
 
 
@@ -1467,7 +1543,10 @@ class FoxESSSFreq(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["SFreq"]
+            if "SFreq" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("SFreq None")
+            else:
+                return self.coordinator.data["raw"]["SFreq"]
         return None
 
 
@@ -1493,7 +1572,10 @@ class FoxESSSPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["SPower"]
+            if "SPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("SPower None")
+            else:
+                return self.coordinator.data["raw"]["SPower"]
         return None
 
 
@@ -1519,7 +1601,10 @@ class FoxESSSVolt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["SVolt"]
+            if "SVolt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("SVolt None")
+            else:
+                return self.coordinator.data["raw"]["SVolt"]
         return None
 
 
@@ -1545,7 +1630,10 @@ class FoxESSTCurrent(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["TCurrent"]
+            if "TCurrent" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("TCurrent None")
+            else:
+                return self.coordinator.data["raw"]["TCurrent"]
         return None
 
 
@@ -1571,7 +1659,10 @@ class FoxESSTFreq(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["TFreq"]
+            if "TFreq" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("TFreq None")
+            else:
+                return self.coordinator.data["raw"]["TFreq"]
         return None
 
 
@@ -1597,7 +1688,10 @@ class FoxESSTPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["TPower"]
+            if "TPower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("TPower None")
+            else:
+                return self.coordinator.data["raw"]["TPower"]
         return None
 
 
@@ -1623,7 +1717,10 @@ class FoxESSTVolt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["TVolt"]
+            if "TVolt" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("TVolt None")
+            else:
+                return self.coordinator.data["raw"]["TVolt"]
         return None
 
 
@@ -1649,7 +1746,10 @@ class FoxESSReactivePower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["ReactivePower"] * 1000
+            if "ReactivePower" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("ReactivePower None")
+            else:
+                return self.coordinator.data["raw"]["ReactivePower"] * 1000
         return None
 
 
@@ -1675,15 +1775,18 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
-                energygenerated = 0
+            if "value" not in self.coordinator.data["reportDailyGeneration"]:
+                _LOGGER.debug("reportDailyGeneration value None")
             else:
-                energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
-                if energygenerated > 0:
-                    energygenerated = round(energygenerated,3)
-                else:
+                if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
                     energygenerated = 0
-            return energygenerated
+                else:
+                    energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
+                    if energygenerated > 0:
+                        energygenerated = round(energygenerated,3)
+                    else:
+                        energygenerated = 0
+                return energygenerated
         return None
 
 
@@ -1709,11 +1812,14 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["gridConsumption"] == 0:
-                energygrid = 0
+            if "gridConsumption" not in self.coordinator.data["report"]:
+                _LOGGER.debug("report gridConsumption None")
             else:
-                energygrid = self.coordinator.data["report"]["gridConsumption"]
-            return energygrid
+                if self.coordinator.data["report"]["gridConsumption"] == 0:
+                    energygrid = 0
+                else:
+                    energygrid = self.coordinator.data["report"]["gridConsumption"]
+                return energygrid
         return None
 
 
@@ -1739,11 +1845,14 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["feedin"] == 0:
-                energyfeedin = 0
+            if "feedin" not in self.coordinator.data["report"]:
+                _LOGGER.debug("report feedin None")
             else:
-                energyfeedin = self.coordinator.data["report"]["feedin"]
-            return energyfeedin
+                if self.coordinator.data["report"]["feedin"] == 0:
+                    energyfeedin = 0
+                else:
+                    energyfeedin = self.coordinator.data["report"]["feedin"]
+                return energyfeedin
         return None
 
 
@@ -1769,11 +1878,14 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
-                energycharge = 0
+            if "chargeEnergyToTal" not in self.coordinator.data["report"]:
+                _LOGGER.debug("report chargeEnergyToTal None")
             else:
-                energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
-            return energycharge
+                if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
+                    energycharge = 0
+                else:
+                    energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
+                return energycharge
         return None
 
 
@@ -1799,11 +1911,14 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
-                energydischarge = 0
+            if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
+                _LOGGER.debug("report dischargeEnergyToTal None")
             else:
-                energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
-            return energydischarge
+                if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
+                    energydischarge = 0
+                else:
+                    energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
+                return energydischarge
         return None
 
 
@@ -1829,12 +1944,15 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if self.coordinator.data["report"]["loads"] == 0:
-                energyload = 0
+            if "loads" not in self.coordinator.data["report"]:
+                _LOGGER.debug("report loads None")
             else:
-                energyload = self.coordinator.data["report"]["loads"]
-            #round
-            return round(energyload,3)
+                if self.coordinator.data["report"]["loads"] == 0:
+                    energyload = 0
+                else:
+                    energyload = self.coordinator.data["report"]["loads"]
+                #round
+                return round(energyload,3)
         return None
 
 
@@ -1868,30 +1986,36 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         if self.coordinator.data["online"]:
-            if int(self.coordinator.data["addressbook"]["status"]) == 1:
-                return "on-line"
+            if "status" not in self.coordinator.data["addressbook"]:
+                _LOGGER.debug("addressbook status None")
             else:
-                if int(self.coordinator.data["addressbook"]["status"]) == 2:
-                    return "in-alarm"
+                if int(self.coordinator.data["addressbook"]["status"]) == 1:
+                    return "on-line"
                 else:
-                    return "off-line"
+                    if int(self.coordinator.data["addressbook"]["status"]) == 2:
+                        return "in-alarm"
+                    else:
+                        return "off-line"
         return None
         
     @property
     def extra_state_attributes(self):
         if self.coordinator.data["online"]:
-            return {
-                ATTR_DEVICE_SN: self.coordinator.data["addressbook"][ATTR_DEVICE_SN],
-                ATTR_PLANTNAME: self.coordinator.data["addressbook"][ATTR_PLANTNAME],
-                ATTR_MODULESN: self.coordinator.data["addressbook"][ATTR_MODULESN],
-                ATTR_DEVICE_TYPE: self.coordinator.data["addressbook"][ATTR_DEVICE_TYPE],
-                #ATTR_COUNTRY: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRY],
-                #ATTR_COUNTRYCODE: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRYCODE],
-                #ATTR_CITY: self.coordinator.data["addressbook"]["result"][ATTR_CITY],
-                #ATTR_ADDRESS: self.coordinator.data["addressbook"]["result"][ATTR_ADDRESS],
-                #ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE],
-                ATTR_LASTCLOUDSYNC: datetime.now()
-            }
+            if "status" not in self.coordinator.data["addressbook"]:
+                _LOGGER.debug("addressbook status attributes None")
+            else:
+                return {
+                    ATTR_DEVICE_SN: self.coordinator.data["addressbook"][ATTR_DEVICE_SN],
+                    ATTR_PLANTNAME: self.coordinator.data["addressbook"][ATTR_PLANTNAME],
+                    ATTR_MODULESN: self.coordinator.data["addressbook"][ATTR_MODULESN],
+                    ATTR_DEVICE_TYPE: self.coordinator.data["addressbook"][ATTR_DEVICE_TYPE],
+                    #ATTR_COUNTRY: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRY],
+                    #ATTR_COUNTRYCODE: self.coordinator.data["addressbook"]["result"][ATTR_COUNTRYCODE],
+                    #ATTR_CITY: self.coordinator.data["addressbook"]["result"][ATTR_CITY],
+                    #ATTR_ADDRESS: self.coordinator.data["addressbook"]["result"][ATTR_ADDRESS],
+                    #ATTR_FEEDINDATE: self.coordinator.data["addressbook"]["result"][ATTR_FEEDINDATE],
+                    ATTR_LASTCLOUDSYNC: datetime.now()
+                }
         return None
 
 
@@ -1917,13 +2041,31 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"]:
-            loads = float(self.coordinator.data["report"]["loads"])
-            charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
-            feedIn = float(self.coordinator.data["report"]["feedin"])
-            gridConsumption = float(
-                self.coordinator.data["report"]["gridConsumption"])
-            discharge = float(
-                self.coordinator.data["report"]["dischargeEnergyToTal"])
+            if "loads" not in self.coordinator.data["report"]:
+                loads = 0
+            else:
+                loads = float(self.coordinator.data["report"]["loads"])
+
+            if "chargeEnergyToTal" not in self.coordinator.data["report"]:
+                charge = 0
+            else:
+                charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
+
+            if "feedin" not in self.coordinator.data["report"]:
+                feedin = 0
+            else:
+                feedIn = float(self.coordinator.data["report"]["feedin"])
+
+            if "gridConsumption" not in self.coordinator.data["report"]:
+                gridConsumption = 0
+            else:
+                gridConsumption = float(self.coordinator.data["report"]["gridConsumption"])
+
+            if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
+                discharge = 0
+            else:
+                discharge = float(self.coordinator.data["report"]["dischargeEnergyToTal"])
+
             energysolar = round((loads + charge + feedIn - gridConsumption - discharge),3)
             if energysolar<0:
                 energysolar=0
@@ -1953,27 +2095,42 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            loads = float(self.coordinator.data["raw"]["loadsPower"])
-            if self.coordinator.data["raw"]["batChargePower"] is None:
+            if "loadsPower" not in self.coordinator.data["raw"]:
+                loads = 0
+            else:
+                loads = float(self.coordinator.data["raw"]["loadsPower"])
+
+            if "batChargePower" not in self.coordinator.data["raw"]:
                 charge = 0
             else:
-                charge = float(self.coordinator.data["raw"]["batChargePower"])
-            feedIn = float(self.coordinator.data["raw"]["feedinPower"])
-            gridConsumption = float(
-                self.coordinator.data["raw"]["gridConsumptionPower"])
-            if self.coordinator.data["raw"]["batDischargePower"] is None:
+                if self.coordinator.data["raw"]["batChargePower"] is None:
+                    charge = 0
+                else:
+                    charge = float(self.coordinator.data["raw"]["batChargePower"])
+
+            if "feedinPower" not in self.coordinator.data["raw"]:
+                feedin = 0
+            else:
+                feedIn = float(self.coordinator.data["raw"]["feedinPower"])
+
+            if "gridConsumptionPower" not in self.coordinator.data["raw"]:
+                gridConsumption = 0
+            else:
+                gridConsumption = float(self.coordinator.data["raw"]["gridConsumptionPower"])
+
+            if "batDischargePower" not in self.coordinator.data["raw"]:
                 discharge = 0
             else:
-                discharge = float(
-                    self.coordinator.data["raw"]["batDischargePower"])
+                if self.coordinator.data["raw"]["batDischargePower"] is None:
+                    discharge = 0
+                else:
+                    discharge = float(self.coordinator.data["raw"]["batDischargePower"])
 
             #check if what was returned (that some time was negative) is <0, so fix it
             total = (loads + charge + feedIn - gridConsumption - discharge)
             if total<0:
                 total=0
             return round(total,3)
-            # original
-            #return loads + charge + feedIn - gridConsumption - discharge
         return None
 
 
@@ -1998,7 +2155,10 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["SoC"]
+            if "SoC" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("SoC None")
+            else:
+                return self.coordinator.data["raw"]["SoC"]
         return  None
 
     @property
@@ -2026,7 +2186,10 @@ class FoxESSBatMinSoC(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["battery"]:
-            return self.coordinator.data["battery"]["minSoc"]
+            if "minSoc" not in self.coordinator.data["battery"]:
+                _LOGGER.debug("minSoc None")
+            else:
+                return self.coordinator.data["battery"]["minSoc"]
         return  None
 
     @property
@@ -2054,7 +2217,10 @@ class FoxESSBatMinSoConGrid(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["battery"]:
-            return self.coordinator.data["battery"]["minSocOnGrid"]
+            if "minSocOnGrid" not in self.coordinator.data["battery"]:
+                _LOGGER.debug("minSocOnGrid None")
+            else:
+                return self.coordinator.data["battery"]["minSocOnGrid"]
         return  None
 
     @property
@@ -2083,7 +2249,10 @@ class FoxESSBatTemp(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["batTemperature"]
+            if "batTemperature" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("batTemperature None")
+            else:
+                return self.coordinator.data["raw"]["batTemperature"]
         return None
 
 
@@ -2108,7 +2277,10 @@ class FoxESSAmbientTemp(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["ambientTemperation"]
+            if "ambientTemperation" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("ambientTemperation None")
+            else:
+                return self.coordinator.data["raw"]["ambientTemperation"]
         return None
 
 
@@ -2133,7 +2305,10 @@ class FoxESSBoostTemp(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["boostTemperation"]
+            if "boostTemperation" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("boostTemperation None")
+            else:
+                return self.coordinator.data["raw"]["boostTemperation"]
         return None
 
 
@@ -2158,7 +2333,10 @@ class FoxESSInvTemp(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            return self.coordinator.data["raw"]["invTemperation"]
+            if "invTemperation" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("invTemperation None")
+            else:
+                return self.coordinator.data["raw"]["invTemperation"]
         return None
 
 
@@ -2183,10 +2361,13 @@ class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            re = self.coordinator.data["raw"]["ResidualEnergy"]
-            if re > 0:
-                re = re / 100
+            if "ResidualEnergy" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("ResidualEnergy None")
             else:
-                re = 0
-            return re
+                re = self.coordinator.data["raw"]["ResidualEnergy"]
+                if re > 0:
+                    re = re / 100
+                else:
+                    re = 0
+                return re
         return None
