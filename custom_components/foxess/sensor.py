@@ -631,11 +631,10 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
             parsed = json.loads(restOAgen.data)["result"]
             if "today" not in parsed:
                 allData["reportDailyGeneration"]["value"] = 0
-                _LOGGER.debug(f"Today has no value: {parsed} set to 0")
+                _LOGGER.debug(f"OA Daily Generation Report data, today has no value: {parsed} set to 0")
             else:
                 allData["reportDailyGeneration"]["value"] = parsed['today']
-                
-            _LOGGER.debug(f"OA Daily Generation Report data: {parsed} and todays value {allData["reportDailyGeneration"]["value"]} ")
+                _LOGGER.debug(f"OA Daily Generation Report data: {parsed} and todays value {parsed['today']} ")
             return False
         else:
             _LOGGER.debug(f"OA Daily Generation Report Bad Response: {response} "+ restOAgen.data)
