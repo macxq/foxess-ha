@@ -74,7 +74,7 @@ METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 TRY_OLD_CLOUD_API = False
-DEFAULT_TIMEOUT = 30 # increase the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 45 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -222,7 +222,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 if allData["online"] == False:
                     _LOGGER.warning("Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
             else:
-                _LOGGER.warning("Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
+                _LOGGER.warning("Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute.")
                 TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
                 
         # actions here are every minute
@@ -346,7 +346,7 @@ async def waitforAPI():
     now = time.time()
     last = last_api
     diff = now - last if last != 0 else 1
-    diff = round(diff,2)
+    diff = round(diff,2) + 0.2
     if diff < 1:
         await asyncio.sleep(diff)
         _LOGGER.debug(f"API enforced delay, wait: {diff}")
