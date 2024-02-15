@@ -43,7 +43,6 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 from homeassistant.util.ssl import SSLCipherList
-
 from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
@@ -117,7 +116,8 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery, last_api
+    # global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery, last_api
+    global LastHour, TimeSlice, last_api
     name = config.get(CONF_NAME)
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
@@ -128,30 +128,32 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug("Device SN:" + deviceSN)
     _LOGGER.debug("Device ID:" + deviceID)
     _LOGGER.debug( f"FoxESS Scan Interval: {SCAN_MINUTES} minutes" )
-    TimeSlice = RETRY_NEXT_SLOT
+    TimeSlice = {}
+    TimeSlice[deviceSN] = RETRY_NEXT_SLOT
     last_api = 0
     LastHour = 0
-    hasBattery = True
     allData = {
         "report":{},
         "reportDailyGeneration": {},
         "raw":{},
         "battery":{},
+        "addressbook":{},
         "online":False
     }
-
+    allData['addressbook']['hasBattery'] = False
 
 
     async def async_update_data():
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
 
-        global token,TimeSlice,allData,LastHour
+        #global token,TimeSlice,allData,LastHour
+        global token, TimeSlice, LastHour
         hournow = datetime.now().strftime("%_H") # update hour now
         _LOGGER.debug(f"Time now: {hournow}, last {LastHour}")
-
-        TimeSlice+=1
-        if (TimeSlice % 5 == 0):
-            _LOGGER.debug(f"TimeSlice 5 Interval: {TimeSlice}")
+        TSlice = TimeSlice[deviceSN] + 1 # get the time slice for the current device and increment it
+        TimeSlice[deviceSN] = TSlice
+        if (TSlice % 5 == 0):
+            _LOGGER.debug(f"TimeSlice Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
     
             user_agent = USER_AGENT # or use- user_agent_rotator.get_random_user_agent()
             headersData = {"token": token,
@@ -191,44 +193,46 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 
                 if statetest in [1,2,3]:
                     allData["online"] = True
-                    if TimeSlice==0:
+                    if TSlice==0:
                         # do this at startup and then every 15 minutes
                         addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings where fitted, poll every 15 mins
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
-                        if TimeSlice==0 or TimeSlice==15 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
+                        if TSlice==0 or TSlice==15 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
                             if LastHour != hournow:
                                 LastHour = hournow # update the hour the last daily report was run
                             getError = await getReport(hass, headersData, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
-                                if TimeSlice==0:
+                                if TSlice==0:
                                     # do this at startup, then every 30 minutes
                                     getError = await getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID)
                                     if getError == True:
                                         allData["online"] = False
-                                        TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
+                                        TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                                         _LOGGER.debug("getReportDailyGeneration False")
                             else:
                                 allData["online"] = False
-                                TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
+                                TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                                 _LOGGER.debug("getReport False")
 
                     else:
                         allData["online"] = False
-                        TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
+                        TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                         _LOGGER.debug("getRaw False")
 
                 if allData["online"] == False:
-                    _LOGGER.warning("Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
+                    _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
             else:
-                _LOGGER.warning("Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute.")
-                TimeSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
+                _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute.")
+                TSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
                 
         # actions here are every minute
-        if TimeSlice==30:
-            TimeSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
-        _LOGGER.debug(f"Auxilliary TimeSlice {TimeSlice}")
+        if TSlice==30:
+            TSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
+        _LOGGER.debug(f"Auxilliary TimeSlice {deviceSN}, {TSlice}")
+
+        TimeSlice[deviceSN] = TSlice
 
         _LOGGER.debug(allData)
 
@@ -346,7 +350,7 @@ async def waitforAPI():
     now = time.time()
     last = last_api
     diff = now - last if last != 0 else 1
-    diff = round(diff,2) + 0.2
+    diff = round( (diff+0.2) ,2)
     if diff < 1:
         await asyncio.sleep(diff)
         _LOGGER.debug(f"API enforced delay, wait: {diff}")
@@ -417,7 +421,6 @@ async def getAddresbook(hass, headersData, allData, username, hashedPassword, de
             return 1
 
 async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
-    global hasBattery
 
     await waitforAPI()
 
@@ -444,11 +447,9 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
             allData['addressbook']['plantName'] = plantName
             testBattery = result['hasBattery']
             if testBattery:
-                _LOGGER.debug(f"OA Device Detail System has Battery: {hasBattery}")
-                hasBattery = True
+                _LOGGER.debug(f"OA Device Detail System has Battery: {testBattery}")
             else:
-                _LOGGER.debug(f"OA Device Detail System has No Battery: {hasBattery}")
-                hasBattery = False
+                _LOGGER.debug(f"OA Device Detail System has No Battery: {testBattery}")
             return False
         else:
             _LOGGER.debug(f"OA Device Detail Bad Response: {response}")
@@ -462,6 +463,11 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_BATTERY_SETTINGS
+    if "hasBattery" not in allData["addressbook"]:
+        hasBattery = False
+    else:
+        hasBattery = allData['addressbook']['hasBattery']
+
     if hasBattery:
         # only make this call if device detail reports battery fitted
         _LOGGER.debug("OABattery Settings fetch " + path + deviceSN)
