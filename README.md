@@ -34,7 +34,7 @@ sensor:
 ```
 
 #### Auxiliary notes:
-- `username & password are exactly as you enter them in the FoxESS app or the cloud - note they are case specific
+- `username & password` are exactly as you enter them in the FoxESS app or the cloud - note they are case specific
 
 - `foxesscloud_inverter_serial_number` is the serial number of the inverter this integration will be gathering data from, you can see the deviceSN by logging into the Foxesscloud.com website, in the left hand menu click on 'Device', then 'Inverter' this will display a table and your Inverter SN - the format will be similar to : 60BHnnnnnnXnnn - copy and paste this into the config setting deviceSN: replacing the text `foxesscloud_inverter_serial_number`
 
