@@ -26,14 +26,16 @@ Edit your home-assistan `/configuration.yaml`  and add:
 ```yaml
 sensor:
   - platform: foxess
-    username: foxesscloud_username
-    password: foxesscloud_password
-    deviceID: foxesscloud_inverter_id
-    deviceSN: foxesscloud_inverter_serial_number
-    apiKey: foxesscloud_personal_api_key
+    username: enter_your_username
+    password: enter_your_password
+    deviceID: enter_your_inverter_id
+    deviceSN: enter_your_inverter_serial_number
+    apiKey: enter_your_personal_api_key
 ```
 
 #### Auxiliary notes:
+- `username & password are exactly as you enter them in the FoxESS app or the cloud - note they are case specific
+
 - `foxesscloud_inverter_serial_number` is the serial number of the inverter this integration will be gathering data from, you can see the deviceSN by logging into the Foxesscloud.com website, in the left hand menu click on 'Device', then 'Inverter' this will display a table and your Inverter SN - the format will be similar to : 60BHnnnnnnXnnn - copy and paste this into the config setting deviceSN: replacing the text `foxesscloud_inverter_serial_number`
 
 - `foxesscloud_personal_api_key` is a personal api_key that is generated in your profile selection of your Foxesscloud account. To do this log into the Foxesscloud.com website, click on the 'profile icon' in the top right corner and select 'User Profile'. Then on the menu on the left hand side select 'API Management' and click 'Generate API Key, the long string that it generates should be copied and pasted into the platform config setting of your configuration.yaml apiKey: replacing the text `foxesscloud_personal_api_key` (see example above).
