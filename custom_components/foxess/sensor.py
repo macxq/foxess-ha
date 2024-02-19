@@ -56,11 +56,6 @@ user_agent_rotator = UserAgent(software_names=software_names, operating_systems=
 
 
 _LOGGER = logging.getLogger(__name__)
-_ENDPOINT_AUTH = "https://www.foxesscloud.com/c/v0/user/login"
-_ENDPOINT_RAW = "https://www.foxesscloud.com/c/v0/device/history/raw"
-_ENDPOINT_REPORT = "https://www.foxesscloud.com/c/v0/device/history/report"
-_ENDPOINT_ADDRESSBOOK = "https://www.foxesscloud.com/c/v0/device/addressbook?deviceID="
-
 _ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
 _ENDPOINT_OA_REPORT = "/op/v0/device/report/query"
@@ -72,7 +67,6 @@ METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-TRY_OLD_CLOUD_API = False
 DEFAULT_TIMEOUT = 45 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
@@ -116,7 +110,6 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    # global apiKey, deviceSN, deviceID, TimeSlice,allData,LastHour, hasBattery, last_api
     global LastHour, TimeSlice, last_api
     name = config.get(CONF_NAME)
     username = config.get(CONF_USERNAME)
@@ -142,11 +135,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     }
     allData['addressbook']['hasBattery'] = False
 
-
     async def async_update_data():
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
-
-        #global token,TimeSlice,allData,LastHour
         global token, TimeSlice, LastHour
         hournow = datetime.now().strftime("%_H") # update hour now
         _LOGGER.debug(f"Time now: {hournow}, last {LastHour}")
@@ -155,33 +145,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         if (TSlice % 5 == 0):
             _LOGGER.debug(f"TimeSlice Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
     
-            user_agent = USER_AGENT # or use- user_agent_rotator.get_random_user_agent()
-            headersData = {"token": token,
-                           "User-Agent": user_agent,
-                           "Accept": "application/json, text/plain, */*",
-                           "lang": "en",
-                           "sec-ch-ua-platform": "macOS",
-                           "Sec-Fetch-Site": "same-origin",
-                           "Sec-Fetch-Mode": "cors",
-                           "Sec-Fetch-Dest": "empty",
-                           "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                           "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                           "Connection": "close",
-                           "X-Requested-With": "XMLHttpRequest"}
-
-            # try old cloud interface - doesn't matter if this fails
-            if TRY_OLD_CLOUD_API:
-                hashedPassword = hashlib.md5(password.encode()).hexdigest()
-                if token is None:
-                    _LOGGER.debug("Token is empty, authenticating")
-                    token = await authAndgetToken(hass, username, hashedPassword)
-
-                addfail = await getAddresbook(hass, headersData, allData, username, hashedPassword, deviceID)
-                if addfail == 0:
-                    _LOGGER.debug("FoxESS old cloud API no Addressbook data, token reset")
-                else:
-                    _LOGGER.debug("FoxESS old cloud API Addressbook data read ok")
-
             # try the openapi see if we get a response
             addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
             if addfail == 0:
@@ -197,16 +160,16 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         # do this at startup and then every 15 minutes
                         addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings where fitted, poll every 15 mins
                     # main real time data fetch, followed by reports
-                    getError = await getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID)
+                    getError = await getRaw(hass, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
                         if TSlice==0 or TSlice==15 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
                             if LastHour != hournow:
                                 LastHour = hournow # update the hour the last daily report was run
-                            getError = await getReport(hass, headersData, allData, apiKey, deviceSN, deviceID)
+                            getError = await getReport(hass, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
                                 if TSlice==0:
                                     # do this at startup, then every 30 minutes
-                                    getError = await getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID)
+                                    getError = await getReportDailyGeneration(hass, allData, apiKey, deviceSN, deviceID)
                                     if getError == True:
                                         allData["online"] = False
                                         TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
@@ -322,7 +285,7 @@ class GetAuth:
         """
         timestamp = round(time.time() * 1000)
         signature = fr'{path}\r\n{token}\r\n{timestamp}'
-
+        # or use user_agent_rotator.get_random_user_agent() for user-agent
         result = {
             'token': token,
             'lang': lang,
@@ -357,68 +320,6 @@ async def waitforAPI():
     now = time.time()
     last_api = now
     return False
-
-async def authAndgetToken(hass, username, hashedPassword):
-
-    payloadAuth = f'user={username}&password={hashedPassword}'
-    user_agent = user_agent_rotator.get_random_user_agent()
-    headersAuth = {"User-Agent": user_agent,
-                   "Accept": "application/json, text/plain, */*",
-                   "lang": "en",
-                   "sec-ch-ua-platform": "macOS",
-                   "Sec-Fetch-Site": "same-origin",
-                   "Sec-Fetch-Mode": "cors",
-                   "Sec-Fetch-Dest": "empty",
-                   "Referer": "https://www.foxesscloud.com/bus/device/inverterDetail?id=xyz&flowType=1&status=1&hasPV=true&hasBattery=false",
-                   "Accept-Language":"en-US;q=0.9,en;q=0.8,de;q=0.7,nl;q=0.6",
-                   "Connection": "close",
-                    "X-Requested-With": "XMLHttpRequest"}
-
-    restAuth = RestData(hass, METHOD_POST, _ENDPOINT_AUTH, DEFAULT_ENCODING,  None,
-                        headersAuth, None, payloadAuth, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
-
-    await restAuth.async_update()
-
-    if restAuth.data is None:
-        _LOGGER.error("Unable to login to FoxESS Cloud - No data received")
-        return False
-
-    response = json.loads(restAuth.data)
-
-    if response["result"] is None:
-        if response["errno"] is not None and response["errno"] == 41807:
-            raise UpdateFailed(
-                f"Unable to login to FoxESS Cloud - bad username or password! {restAuth.data}")
-        else:
-            raise UpdateFailed(
-                f"Error communicating with API: {restAuth.data}")
-    else:
-        _LOGGER.debug("Login succesfull" + restAuth.data)
-
-    token = response["result"]["token"]
-    return token
-
-
-async def getAddresbook(hass, headersData, allData, username, hashedPassword, deviceID):
-    restAddressBook = RestData(hass, METHOD_GET, _ENDPOINT_ADDRESSBOOK +
-                               deviceID, DEFAULT_ENCODING,  None, headersData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
-    await restAddressBook.async_update()
-
-    if restAddressBook.data is None:
-        _LOGGER.error("Unable to get Addressbook data from FoxESS Cloud")
-        return 0
-    else:
-        response = json.loads(restAddressBook.data)
-        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
-                global token
-                token = None
-                _LOGGER.debug(f"Token has expired, re-authenticating {token}")
-                return 0
-        else:
-            _LOGGER.debug(
-                "FoxESS Addressbook data fetched correctly "+restAddressBook.data)
-            #allData['addressbook'] = response
-            return 1
 
 async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
 
@@ -498,7 +399,7 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
         return False
 
 
-async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
+async def getReport(hass, allData, apiKey, deviceSN, deviceID):
 
     await waitforAPI() # check for api delay
 
@@ -531,44 +432,7 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
 
     if restOAReport.data is None or restOAReport.data == '':
         _LOGGER.debug("Unable to get OA Report from FoxESS Cloud")
-        # try the old cloud
-        if TRY_OLD_CLOUD_API:
-            now = datetime.now()
-            reportData = '{"deviceID":"'+deviceID+'","reportType":"day","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"],"queryDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+'}}'
-            _LOGGER.debug("FoxESS Report data query: " +   reportData)
-
-            restReport = RestData(
-                hass, 
-                METHOD_POST, 
-                _ENDPOINT_REPORT,
-                DEFAULT_ENCODING, 
-                None, 
-                headersData, 
-                None, 
-                reportData, 
-                DEFAULT_VERIFY_SSL, 
-                SSLCipherList.PYTHON_DEFAULT,
-                DEFAULT_TIMEOUT
-            )
-
-            await restReport.async_update()
-
-            if restReport.data is None:
-                _LOGGER.warning("Unable to get Report data from FoxESS Cloud")
-                return True
-            else:
-                _LOGGER.debug("FoxESS Report data fetched correctly " + restReport.data[:350] + " ... ")
-                for item in json.loads(restReport.data)['result']:
-                    variableName = item['variable']
-                    allData['report'][variableName] = None
-                    # Daily reports break down the data hour by hour for the whole day even if we're only
-                    # partially through, so sum the values together to get our daily total so far...
-                    cumulative_total = 0
-                    for dataItem in item['data']:
-                        cumulative_total += dataItem['value']
-                    _LOGGER.debug(f"Old Report Variable: {variableName}, Total: {cumulative_total}")
-                    allData['report'][variableName] = round(cumulative_total,3)
-                return False
+        return True
     else:
         # Openapi responded so process data
         response = json.loads(restOAReport.data)
@@ -593,9 +457,10 @@ async def getReport(hass, headersData, allData, apiKey, deviceSN, deviceID):
             return False
         else:
             _LOGGER.debug(f"OA Report Bad Response: {response} "+ restOAReport.data)
+            return True
 
 
-async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN, deviceID):
+async def getReportDailyGeneration(hass, allData, apiKey, deviceSN, deviceID):
 
     await waitforAPI() # check for api delay
 
@@ -644,42 +509,10 @@ async def getReportDailyGeneration(hass, headersData, allData, apiKey, deviceSN,
             return False
         else:
             _LOGGER.debug(f"OA Daily Generation Report Bad Response: {response} "+ restOAgen.data)
-
-        # try the old cloud
-        if TRY_OLD_CLOUD_API:
-
-            generationData = ('{"deviceID":"' + deviceID + '","reportType": "month",' + '"variables": ["generation"],' + '"queryDate": {' + '"year":' + now.strftime("%Y") + ',"month":' + now.strftime("%_m") + ',"day":' + now.strftime("%_d") + ',"hour":' + now.strftime("%_H") + "}}")
-
-            _LOGGER.debug("FoxESS Report Daily Generation query: " +   generationData)
-
-            restGeneration = RestData(
-                hass,
-                METHOD_POST,
-                _ENDPOINT_REPORT,
-                DEFAULT_ENCODING,
-                None,
-                headersData,
-                None,
-                generationData,
-                DEFAULT_VERIFY_SSL,
-                SSLCipherList.PYTHON_DEFAULT,
-                DEFAULT_TIMEOUT
-            )
-
-            await restGeneration.async_update()
-
-            if restGeneration.data is None:
-                _LOGGER.warning("Unable to get daily generation from FoxESS Cloud")
-                return True
-            else:
-                _LOGGER.debug("FoxESS daily generation data fetched correctly " + restGeneration.data)
-                parsed = json.loads(restGeneration.data)["result"]
-                _LOGGER.debug(f"Foxess DG Data fetched OK Response: { parsed[0]['data'][int(now.strftime('%d')) - 1] }")
-                allData["reportDailyGeneration"] = parsed[0]["data"][int(now.strftime("%d")) - 1]
-                return False
+            return True
 
 
-async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
+async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
     await waitforAPI() # check for api delay
 
@@ -725,62 +558,7 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == '':
         _LOGGER.debug("Unable to get OA Device Variables from FoxESS Cloud")
-        # try the old cloud ?
-        if TRY_OLD_CLOUD_API:
-            now = datetime.now() - timedelta(minutes=6)
-            _LOGGER.warning("GetRaw Fallback to old cloud interface")
-
-            rawData =  '{"deviceID":"'+deviceID+'","variables":["ambientTemperation", \
-                                    "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
-                                    "boostTemperation", "chargeTemperature","dspTemperature", \
-                                    "epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
-                                    "feedinPower","generationPower","gridConsumptionPower", \
-                                    "input","invBatCurrent","invBatPower","invBatVolt","invTemperation", \
-                                    "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
-                                    "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
-                                    "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
-                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower", \
-                                    "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
-                                    "SCurrent","SFreq","SoC","SPower","SVolt", \
-                                    "TCurrent","TFreq","TPower","TVolt"], \
-                                    "timespan":"hour","beginDate":{"year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"day":'+now.strftime("%_d")+',"hour":'+now.strftime("%_H")+',"minute":0,"second":0}}'
-
-            _LOGGER.debug("getRaw request:" +rawData) 
-
-            restRaw = RestData(
-                hass, 
-                METHOD_POST, 
-                _ENDPOINT_RAW,
-                DEFAULT_ENCODING, 
-                None, 
-                headersData, 
-                None, 
-                rawData, 
-                DEFAULT_VERIFY_SSL, 
-                SSLCipherList.PYTHON_DEFAULT,
-                DEFAULT_TIMEOUT
-            )
-
-            await restRaw.async_update()
-
-            if restRaw.data is None:
-                _LOGGER.error("Unable to get Raw data from FoxESS Cloud")
-                return True
-            else:
-                _LOGGER.debug("FoxESS Raw data fetched correctly " + restRaw.data[:1200] + " ... " ) 
-                # allData['raw'] = {}
-                for item in json.loads(restRaw.data)['result']:
-                    variableName = item['variable']
-                    # If data is a non-empty list, pop the last value off the list, otherwise return the previously found value
-                    if item["data"]:
-                        allData['raw'][variableName] = item["data"].pop().get("value",None)
-                        _LOGGER.debug( f"Variable: {variableName} being set to {allData['raw'][variableName]}" )
-                # These don't exist in old cloud api set them to 0
-                allData['raw']['ResidualEnergy'] = 0
-                allData['raw']['todayYield'] = 0
-                allData["battery"]["minSoc"] = 0
-                allData["battery"]["minSocOnGrid"] = 0
-        return False
+        return True
     else:
         # Openapi responded correctly
         response = json.loads(restOADeviceVariables.data)
@@ -804,9 +582,6 @@ async def getRaw(hass, headersData, allData, apiKey, deviceSN, deviceID):
         else:
             _LOGGER.debug(f"OA Device Variables Bad Response: {response}")
             return True
-            
-#        if response["errno"] is not None and (response["errno"] == 41809 or response["errno"] == 41808):
-#                _LOGGER.debug("Error getting OA Device Variables " +restOADeviceVariables.data)
 
 class FoxESSGenerationPower(CoordinatorEntity, SensorEntity):
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
