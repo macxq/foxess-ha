@@ -25,8 +25,6 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     ATTR_TIME,
     ATTR_VOLTAGE,
-    CONF_PASSWORD,
-    CONF_USERNAME,
     CONF_NAME,
     UnitOfEnergy,
     UnitOfPower,
@@ -97,8 +95,6 @@ SCAN_INTERVAL = timedelta(minutes=SCAN_MINUTES)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
         vol.Required(CONF_APIKEY): cv.string,
         vol.Required(CONF_DEVICESN): cv.string,
         vol.Required(CONF_DEVICEID): cv.string,
@@ -112,8 +108,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     """Set up the FoxESS sensor."""
     global LastHour, TimeSlice, last_api
     name = config.get(CONF_NAME)
-    username = config.get(CONF_USERNAME)
-    password = config.get(CONF_PASSWORD)
     deviceID = config.get(CONF_DEVICEID)
     deviceSN = config.get(CONF_DEVICESN)
     apiKey = config.get(CONF_APIKEY)
