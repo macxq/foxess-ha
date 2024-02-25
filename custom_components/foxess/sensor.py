@@ -164,7 +164,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
-                        if TSlice==0 or TSlice==15 # or LastHour != hournow: # do this at startup, every 15 minutes # and on the hour change
+                        if TSlice==0 or TSlice==15: # do this at startup, every 15 minutes and on the hour change
                             getError = await getReport(hass, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
                                 if TSlice==0:
