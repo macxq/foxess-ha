@@ -144,7 +144,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             _LOGGER.debug(f"TimeSlice Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
     
             # try the openapi see if we get a response
-            addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
+            if TSlice==0: # get device detail at startup, then every 30 minutes to save api calls
+                addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
+            else:
+                addfail = 0
+
             if addfail == 0:
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
@@ -155,14 +159,12 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 if statetest in [1,2,3]:
                     allData["online"] = True
                     if TSlice==0:
-                        # do this at startup and then every 15 minutes
+                        # do this at startup and then every 30 minutes
                         addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings where fitted, poll every 15 mins
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, allData, apiKey, deviceSN, deviceID)
                     if getError == False:
-                        if TSlice==0 or TSlice==15 or LastHour != hournow: # do this at startup, every 15 minutes and on the hour change
-                            if LastHour != hournow:
-                                LastHour = hournow # update the hour the last daily report was run
+                        if TSlice==0 or TSlice==15 # or LastHour != hournow: # do this at startup, every 15 minutes # and on the hour change
                             getError = await getReport(hass, allData, apiKey, deviceSN, deviceID)
                             if getError == False:
                                 if TSlice==0:
@@ -192,6 +194,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         if TSlice==30:
             TSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
         _LOGGER.debug(f"Auxilliary TimeSlice {deviceSN}, {TSlice}")
+
+        if LastHour != hournow:
+            LastHour = hournow # update the hour the last poll was run
 
         TimeSlice[deviceSN] = TSlice
 
