@@ -67,7 +67,7 @@ METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DEFAULT_TIMEOUT = 45 # increase the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 75 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -452,7 +452,10 @@ async def getReport(hass, allData, apiKey, deviceSN, deviceID):
                 cumulative_total = 0
                 for dataItem in item['values']:
                     if today==index: # we're only interested in the total for today
-                        cumulative_total = dataItem
+                        if dataItem != None:
+                            cumulative_total = dataItem
+                        else:
+                            _LOGGER.warn(f"Report month fetch, None received")
                         break
                     index+=1
                     #cumulative_total += dataItem
