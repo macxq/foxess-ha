@@ -98,6 +98,10 @@ Bat Temp | °C
 Ambient Temp | °C
 Boost Temp | °C
 Inv Temp | °C
+Residual Energy | kWh
+minSoC | %
+minSoC on Grid | %
+Power Factor | %
 
 
 💡 If you want to understand energy generation per string check out this wiki [article](https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha)
