@@ -36,6 +36,7 @@ from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfFrequency,
     POWER_VOLT_AMPERE_REACTIVE,
+    PERCENTAGE,
 )
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -236,20 +237,21 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSPV4Power(coordinator, name, deviceID),
         FoxESSPV4Volt(coordinator, name, deviceID),
         FoxESSPVPower(coordinator, name, deviceID),
-        FoxESSRCurrent(coordinator, name, deviceID),
-        FoxESSRFreq(coordinator, name, deviceID),
-        FoxESSRPower(coordinator, name, deviceID),
+        FoxESSCurrent(coordinator, name, deviceID, "RCurrent"),
+        FoxESSCurrent(coordinator, name, deviceID, "SCurrent"),
+        FoxESSCurrent(coordinator, name, deviceID, "TCurrent"),
+        FoxESSFreq(coordinator, name, deviceID, "RFreq"),
+        FoxESSFreq(coordinator, name, deviceID, "SFreq"),
+        FoxESSFreq(coordinator, name, deviceID, "TFreq"),
+        FoxESSPower(coordinator, name, deviceID, "RPower"),
+        FoxESSPower(coordinator, name, deviceID, "SPower"),
+        FoxESSPower(coordinator, name, deviceID, "TPower"),
+        FoxESSVolt(coordinator, name, deviceID, "RVolt"),
+        FoxESSVolt(coordinator, name, deviceID, "SVolt"),
+        FoxESSVolt(coordinator, name, deviceID, "TVolt"),
         FoxESSMeter2Power(coordinator, name, deviceID),
-        FoxESSRVolt(coordinator, name, deviceID),
-        FoxESSSCurrent(coordinator, name, deviceID),
-        FoxESSSFreq(coordinator, name, deviceID),
-        FoxESSSPower(coordinator, name, deviceID),
-        FoxESSSVolt(coordinator, name, deviceID),
-        FoxESSTCurrent(coordinator, name, deviceID),
-        FoxESSTFreq(coordinator, name, deviceID),
-        FoxESSTPower(coordinator, name, deviceID),
-        FoxESSTVolt(coordinator, name, deviceID),
         FoxESSReactivePower(coordinator, name, deviceID),
+        FoxESSPowerFactor(coordinator, name, deviceID),
         FoxESSBatTemp(coordinator, name, deviceID),
         FoxESSAmbientTemp(coordinator, name, deviceID),
         FoxESSBoostTemp(coordinator, name, deviceID),
@@ -1140,17 +1142,18 @@ class FoxESSPVPower(CoordinatorEntity, SensorEntity):
         return None
 
 
-class FoxESSRCurrent(CoordinatorEntity, SensorEntity):
+class FoxESSCurrent(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
     _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, sensor_key):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - R Current")
-        self._attr_name = name+" - R Current"
-        self._attr_unique_id = deviceID+"r-current"
+        self._sensor_key = sensor_key
+        _LOGGER.debug(f"Initiating Entity - {add_separator_between_uppercase(self._sensor_key, ' ')}")
+        self._attr_name = f"{name} - {add_separator_between_uppercase(self._sensor_key, ' ')}"
+        self._attr_unique_id = f"{deviceID}{add_separator_between_uppercase(self._sensor_key, '-').lower()}"
         self.status = namedtuple(
             "status",
             [
@@ -1162,24 +1165,25 @@ class FoxESSRCurrent(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "RCurrent" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("RCurrent None")
+            if self._sensor_key not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._sensor_key} None")
             else:
-                return self.coordinator.data["raw"]["RCurrent"]
+                return self.coordinator.data["raw"][self._sensor_key]
         return None
 
 
-class FoxESSRFreq(CoordinatorEntity, SensorEntity):
+class FoxESSFreq(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.FREQUENCY
     _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, sensor_key):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - R Freq")
-        self._attr_name = name+" - R Freq"
-        self._attr_unique_id = deviceID+"r-freq"
+        self._sensor_key = sensor_key
+        _LOGGER.debug(f"Initiating Entity - {add_separator_between_uppercase(self._sensor_key, ' ')}")
+        self._attr_name = f"{name} - {add_separator_between_uppercase(self._sensor_key, ' ')}"
+        self._attr_unique_id = f"{deviceID}{add_separator_between_uppercase(self._sensor_key, '-').lower()}"
         self.status = namedtuple(
             "status",
             [
@@ -1191,24 +1195,25 @@ class FoxESSRFreq(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "RFreq" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("RFreq None")
+            if self._sensor_key not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._sensor_key} None")
             else:
-                return self.coordinator.data["raw"]["RFreq"]
+                return self.coordinator.data["raw"][self._sensor_key]
         return None
 
 
-class FoxESSRPower(CoordinatorEntity, SensorEntity):
+class FoxESSPower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, sensor_key):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - R Power")
-        self._attr_name = name+" - R Power"
-        self._attr_unique_id = deviceID+"r-power"
+        self._sensor_key = sensor_key
+        _LOGGER.debug(f"Initiating Entity - {add_separator_between_uppercase(self._sensor_key, ' ')}")
+        self._attr_name = f"{name} - {add_separator_between_uppercase(self._sensor_key, ' ')}"
+        self._attr_unique_id = f"{deviceID}{add_separator_between_uppercase(self._sensor_key, '-').lower()}"
         self.status = namedtuple(
             "status",
             [
@@ -1220,10 +1225,10 @@ class FoxESSRPower(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "RPower" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("RPower None")
+            if self._sensor_key not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._sensor_key} None")
             else:
-                return self.coordinator.data["raw"]["RPower"]
+                return self.coordinator.data["raw"][self._sensor_key]
         return None
 
 class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
@@ -1252,20 +1257,21 @@ class FoxESSMeter2Power(CoordinatorEntity, SensorEntity):
                 _LOGGER.debug("meterPower2 None")
             else:
                 return self.coordinator.data["raw"]["meterPower2"]
-        return None 
+        return None
 
 
-class FoxESSRVolt(CoordinatorEntity, SensorEntity):
+class FoxESSVolt(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.VOLTAGE
     _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, sensor_key):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - R Volt")
-        self._attr_name = name+" - R Volt"
-        self._attr_unique_id = deviceID+"r-volt"
+        self._sensor_key = sensor_key
+        _LOGGER.debug(f"Initiating Entity - {add_separator_between_uppercase(self._sensor_key, ' ')}")
+        self._attr_name = f"{name} - {add_separator_between_uppercase(self._sensor_key, ' ')}"
+        self._attr_unique_id = f"{deviceID}{add_separator_between_uppercase(self._sensor_key, '-').lower()}"
         self.status = namedtuple(
             "status",
             [
@@ -1277,242 +1283,10 @@ class FoxESSRVolt(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "RVolt" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("RVolt None")
+            if self._sensor_key not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._sensor_key} None")
             else:
-                return self.coordinator.data["raw"]["RVolt"]
-        return None
-
-
-class FoxESSSCurrent(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - S Current")
-        self._attr_name = name+" - S Current"
-        self._attr_unique_id = deviceID+"s-current"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "SCurrent" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("SCurrent None")
-            else:
-                return self.coordinator.data["raw"]["SCurrent"]
-        return None
-
-
-class FoxESSSFreq(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.FREQUENCY
-    _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - S Freq")
-        self._attr_name = name+" - S Freq"
-        self._attr_unique_id = deviceID+"s-freq"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "SFreq" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("SFreq None")
-            else:
-                return self.coordinator.data["raw"]["SFreq"]
-        return None
-
-
-class FoxESSSPower(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - S Power")
-        self._attr_name = name+" - S Power"
-        self._attr_unique_id = deviceID+"s-power"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "SPower" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("SPower None")
-            else:
-                return self.coordinator.data["raw"]["SPower"]
-        return None
-
-
-class FoxESSSVolt(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - S Volt")
-        self._attr_name = name+" - S Volt"
-        self._attr_unique_id = deviceID+"s-volt"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "SVolt" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("SVolt None")
-            else:
-                return self.coordinator.data["raw"]["SVolt"]
-        return None
-
-
-class FoxESSTCurrent(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - T Current")
-        self._attr_name = name+" - T Current"
-        self._attr_unique_id = deviceID+"t-current"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "TCurrent" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("TCurrent None")
-            else:
-                return self.coordinator.data["raw"]["TCurrent"]
-        return None
-
-
-class FoxESSTFreq(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.FREQUENCY
-    _attr_native_unit_of_measurement = UnitOfFrequency.HERTZ
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - T Freq")
-        self._attr_name = name+" - T Freq"
-        self._attr_unique_id = deviceID+"t-freq"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "TFreq" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("TFreq None")
-            else:
-                return self.coordinator.data["raw"]["TFreq"]
-        return None
-
-
-class FoxESSTPower(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - T Power")
-        self._attr_name = name+" - T Power"
-        self._attr_unique_id = deviceID+"t-power"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "TPower" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("TPower None")
-            else:
-                return self.coordinator.data["raw"]["TPower"]
-        return None
-
-
-class FoxESSTVolt(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.VOLTAGE
-    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - T Volt")
-        self._attr_name = name+" - T Volt"
-        self._attr_unique_id = deviceID+"t-volt"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "TVolt" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("TVolt None")
-            else:
-                return self.coordinator.data["raw"]["TVolt"]
+                return self.coordinator.data["raw"][self._sensor_key]
         return None
 
 
@@ -1542,6 +1316,35 @@ class FoxESSReactivePower(CoordinatorEntity, SensorEntity):
                 _LOGGER.debug("ReactivePower None")
             else:
                 return self.coordinator.data["raw"]["ReactivePower"] * 1000
+        return None
+
+
+class FoxESSPowerFactor(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.POWER_FACTOR
+    _attr_native_unit_of_measurement = PERCENTAGE
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Power Factor")
+        self._attr_name = name+" - Power Factor"
+        self._attr_unique_id = deviceID+"power-factor"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+            if "PowerFactor" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("PowerFactor None")
+            else:
+                return self.coordinator.data["raw"]["PowerFactor"]
         return None
 
 
@@ -1844,7 +1647,7 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
                 charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
 
             if "feedin" not in self.coordinator.data["report"]:
-                feedin = 0
+                feedIn = 0
             else:
                 feedIn = float(self.coordinator.data["report"]["feedin"])
 
@@ -2163,3 +1966,12 @@ class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
                     re = 0
                 return re
         return None
+
+
+def add_separator_between_uppercase(input_string, separator):
+    new_string = ""
+    for char in input_string:
+        if char.isupper() and new_string:
+            new_string += separator
+        new_string += char
+    return new_string
