@@ -65,7 +65,7 @@ sensor:
 
 HA Entity  | Measurement
 |---|---|
-Inverter |  on/off
+Inverter |  on-line/off-line/in-alarm
 Generation Power  |  kW 
 Grid Consumption Power  |  kW  
 FeedIn Power  |  kW  
@@ -73,6 +73,7 @@ Bat Discharge Power  |  kW
 Bat Charge Power  |  kW  
 Solar Power | kW
 Load Power | kW
+meter2 Power | kW
 PV1 Current | A
 PV1 Power | kW
 PV1 Volt | V
@@ -115,6 +116,7 @@ Residual Energy | kWh
 minSoC | %
 minSoC on Grid | %
 Power Factor | %
+API Response Time | mS
 
 💡 If you want to understand energy generation per string check out this wiki [article](https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha)
 
@@ -150,9 +152,18 @@ The OpenAPI has a limit of 1,440 API calls per day, after which the OpenAPI will
 
 This sounds like a large number of calls, but bear in mind that multiple API calls have to be made on each scan to gain the complete dataset for a system.
 
-The integration paces the number of API calls that are made, currently getting all real time sensor information every 5 minutes (in-line with the datalogger update frequency). The report information that provides the current 'daily' figures for Feedin, Generation, GridConsumption, Battery Charge, Battery Discharge and Load, the Energy Generated (todays yield) and the battery settings are read every 15 minutes and on the hour.
+The integration paces the number of API calls that are made, with the following frequency -
 
-As it stands the integration is using approximately 40 API calls an hour (960 a day and well within the 1,440), there are some outstanding requests on FoxESS R&D that could reduce this further and hopefully in future allow faster updates.
+Site status and plant details - every 30 minutes
+- Site status and plant details - every 30 minutes
+- Real time variables - every 5 minutes
+- Cumulative total reports (generation, feedin, gridConsumption, BatterychargeTotal, Batterydischargetotal, home load) - every 15 minutes
+- Daily Generation report (Daily Energy Generated - 'total yield') - every 30 minutes
+- Battery minSoC settings - every 30 minutes
+
+The integration is using approximately 24 API calls an hour (960 a day and well within the 1,440), there are some outstanding requests on FoxESS R&D that could reduce this further and hopefully in future allow faster updates.
+
+If you have multiple inverters in your account, you will receive 1,440 calls per inverter, so for 2 inverters you will have 2,880 api calls.
 
 
 ## 📚 Usefull wiki articles
