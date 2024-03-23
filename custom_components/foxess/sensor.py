@@ -132,7 +132,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         "addressbook":{},
         "online":False
     }
-    allData['addressbook']['hasBattery'] = False
+    allData['addressbook']['hasBattery'] = False # assume no battery is fitted for now
+    allData['addressbook']['status'] = '3' # assume inverter is off-line for now
 
     async def async_update_data():
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
@@ -157,7 +158,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     statetest = 0
                 _LOGGER.debug(f" Statetest {statetest}")
 
-                if statetest in [1,2,3]:
+                if statetest in [1,2]:
                     allData["online"] = True
                     if TSlice==0:
                         # do this at startup and then every 30 minutes
@@ -184,6 +185,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         allData["online"] = False
                         TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                         _LOGGER.debug("getRaw False")
+                else:
+                    if statetest==3:
+                        # The inverter has gone off-line, no raw data polling, don't update entities
+                        # and retry device detail call every 5 minutes until it comes back on-line
+                        allData["online"] = False
+                        TSlice = 25 # forces a retry on device detail in 5 minutes
+                        _LOGGER.debug(f" Inverter off-line set online flag false for SN:{deviceSN}")
 
                 if allData["online"] == False:
                     _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
@@ -274,7 +282,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSEnergyBatCharge(coordinator, name, deviceID),
         FoxESSEnergyBatDischarge(coordinator, name, deviceID),
         FoxESSEnergyLoad(coordinator, name, deviceID),
-        FoxESSResidualEnergy(coordinator, name, deviceID)
+        FoxESSResidualEnergy(coordinator, name, deviceID),
+        FoxESSResponseTime(coordinator, name, deviceID)
     ])
 
 
@@ -545,6 +554,8 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                                     "ResidualEnergy", "todayYield"] }'
 
     _LOGGER.debug("getRaw OA request:" +rawData)
+    
+    _LOGGER.debug(f"OA getRaw: {allData['raw']}")
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_VARIABLES
     _LOGGER.debug("OADevice Variables fetch " + path )
@@ -563,6 +574,8 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
         DEFAULT_TIMEOUT
     )
 
+    timestamp = round(time.time() * 1000)
+
     await restOADeviceVariables.async_update()
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == '':
@@ -572,6 +585,12 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
         # Openapi responded correctly
         response = json.loads(restOADeviceVariables.data)
         if response["errno"] == 0 and response["msg"] == 'success' :
+            ResponseTime = round(time.time() * 1000) - timestamp
+            if ResponseTime > 0:
+                allData['raw']['ResponseTime'] = ResponseTime
+            else:
+                allData['raw']['ResponseTime'] = 0
+
             test = json.loads(restOADeviceVariables.data)['result']
             result = test[0].get('datas')
             _LOGGER.debug(f"OA Device Variables Good Response: {result}")
@@ -586,7 +605,7 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                     _LOGGER.debug( f"Variable {variableName} no value, set to zero" )
 
                 allData['raw'][variableName] = variableValue
-                _LOGGER.debug( f"Variable: {variableName} being set to {allData['raw'][variableName]}" )
+                _LOGGER.debug( f"Variable: {variableName}, SN: {deviceSN} being set to {allData['raw'][variableName]}" )
             return False
         else:
             _LOGGER.debug(f"OA Device Variables Bad Response: {response}")
@@ -621,9 +640,6 @@ class FoxESSPowerString(CoordinatorEntity, SensorEntity):
             else:
                 return self.coordinator.data["raw"][self._keyValue]
         return None
-
-
-
 
 class FoxESSCurrent(CoordinatorEntity, SensorEntity):
 
@@ -1316,6 +1332,64 @@ class FoxESSTemp(CoordinatorEntity, SensorEntity):
                 return self.coordinator.data["raw"][self._keyValue]
         return None
 
+
+class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Residual Energy")
+        self._attr_name = name+" - Residual Energy"
+        self._attr_unique_id = deviceID+"residual-energy"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+            if "ResidualEnergy" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("ResidualEnergy None")
+            else:
+                re = self.coordinator.data["raw"]["ResidualEnergy"]
+                if re > 0:
+                    re = re / 100
+                else:
+                    re = 0
+                return re
+        return None
+
+class FoxESSResponseTime(CoordinatorEntity, SensorEntity):
+
+    _attr_native_unit_of_measurement = 'mS'
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Response Time")
+        self._attr_name = name+" - Response Time"
+        self._attr_unique_id = deviceID+"response-time"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+            if "ResponseTime" not in self.coordinator.data["raw"]:
+                _LOGGER.debug("ResponseTime None")
+            else:
+                return self.coordinator.data["raw"]["ResponseTime"]
+        return None
 
 class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
 
