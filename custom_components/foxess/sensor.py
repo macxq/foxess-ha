@@ -554,8 +554,6 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                                     "ResidualEnergy", "todayYield"] }'
 
     _LOGGER.debug("getRaw OA request:" +rawData)
-    
-    _LOGGER.debug(f"OA getRaw: {allData['raw']}")
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_VARIABLES
     _LOGGER.debug("OADevice Variables fetch " + path )
