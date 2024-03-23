@@ -603,7 +603,7 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                     _LOGGER.debug( f"Variable {variableName} no value, set to zero" )
 
                 allData['raw'][variableName] = variableValue
-                _LOGGER.debug( f"Variable: {variableName}, SN: {deviceSN} being set to {allData['raw'][variableName]}" )
+                _LOGGER.debug( f"Var: {variableName}, SN: {deviceSN} set to {allData['raw'][variableName]}" )
             return False
         else:
             _LOGGER.debug(f"OA Device Variables Bad Response: {response}")
@@ -1387,36 +1387,4 @@ class FoxESSResponseTime(CoordinatorEntity, SensorEntity):
                 _LOGGER.debug("ResponseTime None")
             else:
                 return self.coordinator.data["raw"]["ResponseTime"]
-        return None
-
-class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
-
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - Residual Energy")
-        self._attr_name = name+" - Residual Energy"
-        self._attr_unique_id = deviceID+"residual-energy"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "ResidualEnergy" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("ResidualEnergy None")
-            else:
-                re = self.coordinator.data["raw"]["ResidualEnergy"]
-                if re > 0:
-                    re = re / 100
-                else:
-                    re = 0
-                return re
         return None
