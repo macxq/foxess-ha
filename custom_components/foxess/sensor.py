@@ -146,7 +146,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             _LOGGER.debug(f"TimeSlice Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
 
             # try the openapi see if we get a response
-            if TSlice==0: # get device detail at startup, then every 30 minutes to save api calls
+            if TSlice==0 or TSlice==15: # get device detail at startup, then every 15 minutes to save api calls
                 addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
             else:
                 addfail = 0
@@ -200,7 +200,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 TSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
 
         # actions here are every minute
-        if TSlice==30:
+        if TSlice>=29:
             TSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
         _LOGGER.debug(f"Auxilliary TimeSlice {deviceSN}, {TSlice}")
 
@@ -534,9 +534,6 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
     await waitforAPI() # check for api delay
 
-    path = _ENDPOINT_OA_DEVICE_VARIABLES
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
     # "deviceSN" used for OpenAPI and it only fetches the real time data
     rawData =  '{"sn":"'+deviceSN+'","variables":["ambientTemperation", \
                                     "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
@@ -555,8 +552,12 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
     _LOGGER.debug("getRaw OA request:" +rawData)
 
+    timestamp = round(time.time() * 1000)
+
+    path = _ENDPOINT_OA_DEVICE_VARIABLES
+    headerData = GetAuth().get_signature(token=apiKey, path=path)
+
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_VARIABLES
-    _LOGGER.debug("OADevice Variables fetch " + path )
 
     restOADeviceVariables = RestData(
         hass,
@@ -571,8 +572,6 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
         SSLCipherList.PYTHON_DEFAULT,
         DEFAULT_TIMEOUT
     )
-
-    timestamp = round(time.time() * 1000)
 
     await restOADeviceVariables.async_update()
 
@@ -1057,7 +1056,7 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
+        if self.coordinator.data["online"] or (self.coordinator.data["online"]==False and int(self.coordinator.data["addressbook"]["status"]) == 3 ):
             if "status" not in self.coordinator.data["addressbook"]:
                 _LOGGER.debug("addressbook status None")
             else:
