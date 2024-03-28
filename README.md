@@ -154,13 +154,13 @@ This sounds like a large number of calls, but bear in mind that multiple API cal
 
 The integration paces the number of API calls that are made, with the following frequency -
 
-- Site status and plant details - every 30 minutes
+- Site status and plant details - every 15 minutes
 - Real time variables - every 5 minutes
 - Cumulative total reports (generation, feedin, gridConsumption, BatterychargeTotal, Batterydischargetotal, home load) - every 15 minutes
 - Daily Generation report (Daily Energy Generated - 'total yield') - every 30 minutes
 - Battery minSoC settings - every 30 minutes
 
-The integration is using approximately 24 API calls an hour (576 a day and well within the 1,440), there are some outstanding requests on FoxESS R&D that could reduce this further and hopefully in future allow faster updates.
+The integration is using approximately 24 API calls an hour (576 a day and well within the 1,440).
 
 If you have multiple inverters in your account, you will receive 1,440 calls per inverter, so for 2 inverters you will have 2,880 api calls.
 
