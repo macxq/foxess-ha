@@ -244,6 +244,12 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSCurrent(coordinator, name, deviceID, "PV4 Current", "pv4-current", "pv4Current"),
         FoxESSPower(coordinator, name, deviceID, "PV4 Power", "pv4-power", "pv4Power"),
         FoxESSVolt(coordinator, name, deviceID, "PV4 Volt", "pv4-volt", "pv4Volt"),
+        FoxESSCurrent(coordinator, name, deviceID, "PV5 Current", "pv5-current", "pv5Current"),
+        FoxESSPower(coordinator, name, deviceID, "PV5 Power", "pv5-power", "pv5Power"),
+        FoxESSVolt(coordinator, name, deviceID, "PV5 Volt", "pv5-volt", "pv5Volt"),
+        FoxESSCurrent(coordinator, name, deviceID, "PV6 Current", "pv6-current", "pv6Current"),
+        FoxESSPower(coordinator, name, deviceID, "PV6 Power", "pv6-power", "pv6Power"),
+        FoxESSVolt(coordinator, name, deviceID, "PV6 Volt", "pv6-volt", "pv6Volt"),
         FoxESSPower(coordinator, name, deviceID, "PV Power", "pv-power", "pvPower"),
         FoxESSCurrent(coordinator, name, deviceID, "R Current", "r-current", "RCurrent"),
         FoxESSFreq(coordinator, name, deviceID, "R Freq", "r-freq", "RFreq"),
@@ -264,7 +270,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSTemp(coordinator, name, deviceID, "Ambient Temperature", "ambient-temperature", "ambientTemperation"),
         FoxESSTemp(coordinator, name, deviceID, "Boost Temperature", "boost-temperature", "boostTemperation"),
         FoxESSTemp(coordinator, name, deviceID, "Inv Temperature", "inv-temperature", "invTemperation"),
-        FoxESSBatSoC(coordinator, name, deviceID),
+        FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC", "bat-soc", "SoC"),
+        FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC1", "bat-soc1", "SoC_1"),
+        FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC2", "bat-soc2", "SoC_2"),
         FoxESSBatMinSoC(coordinator, name, deviceID),
         FoxESSBatMinSoConGrid(coordinator, name, deviceID),
         FoxESSSolarPower(coordinator, name, deviceID),
@@ -310,6 +318,7 @@ class GetAuth:
                           'Chrome/117.0.0.0 Safari/537.36',
             'Connection': 'close'
         }
+
         return result
 
     @staticmethod
@@ -368,7 +377,7 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
                 _LOGGER.debug(f"OA Device Detail System has No Battery: {testBattery}")
             return False
         else:
-            _LOGGER.debug(f"OA Device Detail Bad Response: {response}")
+            _LOGGER.error(f"OA Device Detail Bad Response: {response}")
             return True
 
 async def getOABatterySettings(hass, allData, deviceSN, apiKey):
@@ -544,11 +553,12 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                                     "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
                                     "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
                                     "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
-                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower", \
+                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt", \
+                                    "pv5Current","pv5Power","pv5Volt","pv6Current","pv6Power","pv6Volt","pvPower", \
                                     "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
                                     "SCurrent","SFreq","SoC","SPower","SVolt", \
                                     "TCurrent","TFreq","TPower","TVolt", \
-                                    "ResidualEnergy", "todayYield"] }'
+                                    "ResidualEnergy", "todayYield", "SoC_1", "SoC_2" ] }'
 
     _LOGGER.debug("getRaw OA request:" +rawData)
 
@@ -1210,11 +1220,14 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = "%"
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - Bat SoC")
-        self._attr_name = name+" - Bat SoC"
-        self._attr_unique_id = deviceID+"bat-soc"
+        self._nameValue = nameValue
+        self._uniqueValue = uniqueValue
+        self._keyValue = keyValue
+        _LOGGER.debug(f"Initiating Entity - {self._nameValue}")
+        self._attr_name = f"{name} - {self._nameValue}"
+        self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
         self.status = namedtuple(
             "status",
             [
@@ -1226,10 +1239,10 @@ class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "SoC" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("SoC None")
+            if self._keyValue not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._keyValue} None")
             else:
-                return self.coordinator.data["raw"]["SoC"]
+                return self.coordinator.data["raw"][self._keyValue]
         return  None
 
     @property
