@@ -107,7 +107,9 @@ Solar  |  kWh
 Load |  kWh 
 Bat Charge  |  kWh 
 Bat Discharge  |  kWh  
-Bat SoC | %
+Bat SoC | % (for single battery systems)
+Bat SoC1 | % (for dual battery systems)
+Bat SoC2 | % (for dual battery systems)
 Bat Temp | °C 
 Ambient Temp | °C
 Boost Temp | °C
