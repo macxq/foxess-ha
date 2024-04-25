@@ -68,7 +68,7 @@ METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DEFAULT_TIMEOUT = 75 # increase the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 90 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -267,12 +267,15 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSReactivePower(coordinator, name, deviceID),
         FoxESSPowerFactor(coordinator, name, deviceID),
         FoxESSTemp(coordinator, name, deviceID, "Bat Temperature", "bat-temperature", "batTemperature"),
+        FoxESSTemp(coordinator, name, deviceID, "Bat Temperature2", "bat-temperature2", "batTemperature_2"),
         FoxESSTemp(coordinator, name, deviceID, "Ambient Temperature", "ambient-temperature", "ambientTemperation"),
         FoxESSTemp(coordinator, name, deviceID, "Boost Temperature", "boost-temperature", "boostTemperation"),
         FoxESSTemp(coordinator, name, deviceID, "Inv Temperature", "inv-temperature", "invTemperation"),
         FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC", "bat-soc", "SoC"),
         FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC1", "bat-soc1", "SoC_1"),
         FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC2", "bat-soc2", "SoC_2"),
+        FoxESSPower(coordinator, name, deviceID, "Inverter Bat Power", "inv-Bat-Power", "invBatPower"),
+        FoxESSPower(coordinator, name, deviceID, "Inverter Bat Power2", "inv-Bat-Power2", "invBatPower_2"),
         FoxESSBatMinSoC(coordinator, name, deviceID),
         FoxESSBatMinSoConGrid(coordinator, name, deviceID),
         FoxESSSolarPower(coordinator, name, deviceID),
@@ -291,7 +294,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSEnergyBatDischarge(coordinator, name, deviceID),
         FoxESSEnergyLoad(coordinator, name, deviceID),
         FoxESSResidualEnergy(coordinator, name, deviceID),
-        FoxESSResponseTime(coordinator, name, deviceID)
+        FoxESSResponseTime(coordinator, name, deviceID),
+        FoxESSRunningState(coordinator, name, deviceID, "Running State", "running-state", "runningState")
     ])
 
 
@@ -436,6 +440,7 @@ async def getReport(hass, allData, apiKey, deviceSN, deviceID):
     now = datetime.now()
 
     reportData = '{"sn":"'+deviceSN+'","year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
+
     _LOGGER.debug("getReport OA request:" + reportData)
 
     restOAReport = RestData(
@@ -544,21 +549,8 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
     await waitforAPI() # check for api delay
 
     # "deviceSN" used for OpenAPI and it only fetches the real time data
-    rawData =  '{"sn":"'+deviceSN+'","variables":["ambientTemperation", \
-                                    "batChargePower","batCurrent","batDischargePower","batTemperature","batVolt", \
-                                    "boostTemperation", "chargeTemperature", "dspTemperature", \
-                                    "epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
-                                    "feedinPower", "generationPower","gridConsumptionPower", \
-                                    "input","invBatCurrent","invBatPower","invBatVolt","invTemperation", \
-                                    "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
-                                    "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
-                                    "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
-                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt", \
-                                    "pv5Current","pv5Power","pv5Volt","pv6Current","pv6Power","pv6Volt","pvPower", \
-                                    "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
-                                    "SCurrent","SFreq","SoC","SPower","SVolt", \
-                                    "TCurrent","TFreq","TPower","TVolt", \
-                                    "ResidualEnergy", "todayYield", "SoC_1", "SoC_2" ] }'
+
+    rawData =  '{"sn":"'+deviceSN+'" }'
 
     _LOGGER.debug("getRaw OA request:" +rawData)
 
@@ -610,6 +602,13 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
                 else:
                     variableValue = 0
                     _LOGGER.debug( f"Variable {variableName} no value, set to zero" )
+                # fix for second battery items
+                if variableName == 'SoC_1':
+                    variableName = 'SoC_1' # do nothing for the moment, future release might align this correctly to use SoC
+                elif variableName == 'batTemperature_1':
+                    variableName = 'batTemperature' # use same entity as for single battery systems
+                elif variableName == 'invBatPower_1':
+                    variableName = 'invBatPower' # use same entity as for single battery systems
 
                 allData['raw'][variableName] = variableValue
                 _LOGGER.debug( f"Var: {variableName}, SN: {deviceSN} set to {allData['raw'][variableName]}" )
@@ -1098,6 +1097,62 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
                     ATTR_LASTCLOUDSYNC: datetime.now()
                 }
         return None
+
+
+class FoxESSRunningState(CoordinatorEntity, SensorEntity):
+
+    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue):
+        super().__init__(coordinator=coordinator)
+        self._nameValue = nameValue
+        self._uniqueValue = uniqueValue
+        self._keyValue = keyValue
+        _LOGGER.debug(f"Initiating Entity - {self._nameValue}")
+        self._attr_name = f"{name} - {self._nameValue}"
+        self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
+        self._attr_icon = "mdi:state-machine"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+            if self._keyValue not in self.coordinator.data["raw"]:
+                _LOGGER.debug(f"{self._keyValue} None")
+            else:
+                res = self.coordinator.data["raw"][self._keyValue]
+                if res == "160":
+                    resText = f"{res}: self-test"
+                elif res == "161":
+                    resText = f"{res}: waiting"
+                elif res == "162":
+                    resText = f"{res}: checking"
+                elif res == "163":
+                    resText = f"{res}: on-grid"
+                elif res == "164":
+                    resText = f"{res}: off-grid"
+                elif res == "165":
+                    resText = f"{res}: fault"
+                elif res == "166":
+                    resText = f"{res}: permanent-fault"
+                elif res == "167":
+                    resText = f"{res}: standby"
+                elif res == "168":
+                    resText = f"{res}: upgrading"
+                elif res == "169":
+                    resText = f"{res}: fct"
+                elif res == "170":
+                    resText = f"{res}: illegal"
+                else:
+                    _LOGGER.debug(f"runcode {res}")
+                    resText = f"{res}: unknown code"
+                #return self.coordinator.data["raw"][self._keyValue]
+                return resText
+        return  None
 
 
 class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
