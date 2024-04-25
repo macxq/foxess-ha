@@ -110,7 +110,7 @@ Bat Discharge  |  kWh
 Bat SoC | % (single battery systems)
 Bat SoC1 | % (dual battery systems)
 Bat SoC2 | % (dual battery systems)
-Inverter Bat Power | kW
+Inverter Bat Power | kW (negative=charging, positive=discharging)
 Inverter Bat Power2 | kW (dual battery systems
 Bat Temperature | °C 
 Bat Temperature2 | °C (dual battery systems)
