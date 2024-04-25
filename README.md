@@ -65,7 +65,7 @@ sensor:
 
 HA Entity  | Measurement
 |---|---|
-Inverter |  on-line/off-line/in-alarm
+Inverter |  string  `on-line/off-line/in-alarm`
 Generation Power  |  kW 
 Grid Consumption Power  |  kW  
 FeedIn Power  |  kW  
@@ -107,10 +107,13 @@ Solar  |  kWh
 Load |  kWh 
 Bat Charge  |  kWh 
 Bat Discharge  |  kWh  
-Bat SoC | % (for single battery systems)
-Bat SoC1 | % (for dual battery systems, note original Bat SoC will be unknown on these systems)
-Bat SoC2 | % (for dual battery systems, note original Bat SoC will be unknown on these systems)
-Bat Temp | °C 
+Bat SoC | % (single battery systems)
+Bat SoC1 | % (dual battery systems)
+Bat SoC2 | % (dual battery systems)
+Inverter Bat Power | kW
+Inverter Bat Power2 | kW (dual battery systems
+Bat Temperature | °C 
+Bat Temperature2 | °C (dual battery systems)
 Ambient Temp | °C
 Boost Temp | °C
 Inv Temp | °C
@@ -119,6 +122,23 @@ minSoC | %
 minSoC on Grid | %
 Power Factor | %
 API Response Time | mS
+Running State | string `163: on-grid` (see **Table1**)
+
+**Table1** Possible Running States
+Running State
+|---------|
+160: self-test
+161: waiting
+162: checking
+163: on-grid
+164: off-grid
+165: fault
+166: permanent-fault
+167: standby
+168: upgrading
+169: fct
+170: illegal
+
 
 💡 If you want to understand energy generation per string check out this wiki [article](https://github.com/macxq/foxess-ha/wiki/Understand-PV-string-power-generation-using-foxess-ha)
 
