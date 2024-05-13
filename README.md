@@ -40,9 +40,26 @@ sensor:
 
 - `your_personal_api_key` is a personal api_key that is generated in your profile selection of your Foxesscloud account. To do this log into the Foxesscloud.com website, click on the 'profile icon' in the top right corner and select 'User Profile'. Then on the menu on the left hand side select 'API Management' and click 'Generate API Key, the long string that it generates should be copied and pasted into the platform config setting of your configuration.yaml apiKey: replacing the text `foxesscloud_personal_api_key` (see example above).
 
-- `your_inverter_id` in UUID that can be found on the foxesscloud in the url path on the `Inverter Details` page.
-⚠️  Please make sure that this is exact value from inverter details page address between = and & character:
-![Screenshot 2021-11-08 at 08 42 05](https://user-images.githubusercontent.com/2965092/140761535-edb12226-b2b8-4f2b-87ce-11b67476a9e2.png)
+- `your_inverter_id` ⚠️  Please note the inverter_id requirement has changed and the deviceID is only required for legacy installations installed prior to the OpenAPI being introduced, for these older installations do not remove it as it will affect your entity history and follow the notes for legacy installations below.
+
+   **For new 'OpenAPI' installations, follow these instructions:**
+
+    For all new OpenAPI installs (since March 2024) simply re-use your unique inverter_serial_number `deviceSN:` in the `deviceID:` (i.e. you would enter your inverter serial number in both of these fields)
+   i.e. it would look like this:
+   ```yaml
+   sensor:
+     - platform: foxess
+       deviceID: enter_your_inverter_serial_number
+       deviceSN: enter_your_inverter_serial_number
+       apiKey: enter_your_personal_api_key
+   ```
+
+
+   For **legacy installations only** you must continue to use the inverter_id as it sets the unique_id for the entities and it will delete your entity history if it is changed.
+   It can be found in the UUID on the foxesscloud in the url path of the `Inverter Details` page; make sure that this is exact value from inverter details page address between the %2522 and %2522 characters:
+![112](https://github.com/macxq/foxess-ha/assets/123640536/1e024286-7215-4bab-8e7d-5dfe5e719275)
+
+
 - Multi-inverter support - if you have more than one FoxESS device in your installation, you can leverage the optional `name` field in your config,
    ```
    sensor:
