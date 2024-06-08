@@ -1237,7 +1237,7 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
                 charge = float(self.coordinator.data["raw"]["batChargePower"])
 
         if "feedinPower" not in self.coordinator.data["raw"]:
-            feedin = 0
+            feedIn = 0
         else:
             feedIn = float(self.coordinator.data["raw"]["feedinPower"])
 
