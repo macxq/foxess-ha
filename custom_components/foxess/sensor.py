@@ -138,7 +138,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async def async_update_data():
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
         global token, TimeSlice, LastHour
-        hournow = datetime.now().strftime("%_H") # update hour now
+        hournow = datetime.now().strftime("%H") # update hour now
         _LOGGER.debug(f"Time now: {hournow}, last {LastHour}")
         TSlice = TimeSlice[deviceSN] + 1 # get the time slice for the current device and increment it
         TimeSlice[deviceSN] = TSlice
@@ -438,8 +438,9 @@ async def getReport(hass, allData, apiKey, deviceSN, deviceID):
     _LOGGER.debug("OA Report fetch " + path )
 
     now = datetime.now()
+    month = str(datetime.now().month)     # now.strftime("%-m")
 
-    reportData = '{"sn":"'+deviceSN+'","year":'+now.strftime("%Y")+',"month":'+now.strftime("%_m")+',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
+    reportData = '{"sn":"'+deviceSN+'","year":'+now.strftime("%Y")+',"month":'+month+',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
 
     _LOGGER.debug("getReport OA request:" + reportData)
 
@@ -468,7 +469,7 @@ async def getReport(hass, allData, apiKey, deviceSN, deviceID):
         if response["errno"] == 0 and response["msg"] == 'success' :
             _LOGGER.debug(f"OA Report Data fetched OK: {response} "+ restOAReport.data[:350])
             result = json.loads(restOAReport.data)['result']
-            today = int(now.strftime("%_d")) # need today as an integer to locate in the monthly report index
+            today = int(now.strftime("%d")) # need today as an integer to locate in the monthly report index
             for item in result:
                 variableName = item['variable']
                 # Daily reports break down the data hour by month for each day
@@ -854,19 +855,18 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "value" not in self.coordinator.data["reportDailyGeneration"]:
-                _LOGGER.debug("reportDailyGeneration value None")
+        if "value" not in self.coordinator.data["reportDailyGeneration"]:
+            _LOGGER.debug("reportDailyGeneration value None")
+        else:
+            if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
+                energygenerated = 0
             else:
-                if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
-                    energygenerated = 0
+                energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
+                if energygenerated > 0:
+                    energygenerated = round(energygenerated,3)
                 else:
-                    energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
-                    if energygenerated > 0:
-                        energygenerated = round(energygenerated,3)
-                    else:
-                        energygenerated = 0
-                return energygenerated
+                    energygenerated = 0
+            return energygenerated
         return None
 
 
@@ -891,15 +891,14 @@ class FoxESSEnergyGridConsumption(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "gridConsumption" not in self.coordinator.data["report"]:
-                _LOGGER.debug("report gridConsumption None")
+        if "gridConsumption" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report gridConsumption None")
+        else:
+            if self.coordinator.data["report"]["gridConsumption"] == 0:
+                energygrid = 0
             else:
-                if self.coordinator.data["report"]["gridConsumption"] == 0:
-                    energygrid = 0
-                else:
-                    energygrid = self.coordinator.data["report"]["gridConsumption"]
-                return energygrid
+                energygrid = self.coordinator.data["report"]["gridConsumption"]
+            return energygrid
         return None
 
 
@@ -924,15 +923,14 @@ class FoxESSEnergyFeedin(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "feedin" not in self.coordinator.data["report"]:
-                _LOGGER.debug("report feedin None")
+        if "feedin" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report feedin None")
+        else:
+            if self.coordinator.data["report"]["feedin"] == 0:
+                energyfeedin = 0
             else:
-                if self.coordinator.data["report"]["feedin"] == 0:
-                    energyfeedin = 0
-                else:
-                    energyfeedin = self.coordinator.data["report"]["feedin"]
-                return energyfeedin
+                energyfeedin = self.coordinator.data["report"]["feedin"]
+            return energyfeedin
         return None
 
 
@@ -957,15 +955,14 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "chargeEnergyToTal" not in self.coordinator.data["report"]:
-                _LOGGER.debug("report chargeEnergyToTal None")
+        if "chargeEnergyToTal" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report chargeEnergyToTal None")
+        else:
+            if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
+                energycharge = 0
             else:
-                if self.coordinator.data["report"]["chargeEnergyToTal"] == 0:
-                    energycharge = 0
-                else:
-                    energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
-                return energycharge
+                energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
+            return energycharge
         return None
 
 
@@ -990,15 +987,14 @@ class FoxESSEnergyBatDischarge(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
-                _LOGGER.debug("report dischargeEnergyToTal None")
+        if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report dischargeEnergyToTal None")
+        else:
+            if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
+                energydischarge = 0
             else:
-                if self.coordinator.data["report"]["dischargeEnergyToTal"] == 0:
-                    energydischarge = 0
-                else:
-                    energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
-                return energydischarge
+                energydischarge = self.coordinator.data["report"]["dischargeEnergyToTal"]
+            return energydischarge
         return None
 
 
@@ -1023,16 +1019,15 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"]:
-            if "loads" not in self.coordinator.data["report"]:
-                _LOGGER.debug("report loads None")
+        if "loads" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report loads None")
+        else:
+            if self.coordinator.data["report"]["loads"] == 0:
+                energyload = 0
             else:
-                if self.coordinator.data["report"]["loads"] == 0:
-                    energyload = 0
-                else:
-                    energyload = self.coordinator.data["report"]["loads"]
-                #round
-                return round(energyload,3)
+                energyload = self.coordinator.data["report"]["loads"]
+            #round
+            return round(energyload,3)
         return None
 
 
@@ -1176,37 +1171,35 @@ class FoxESSEnergySolar(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"]:
-            if "loads" not in self.coordinator.data["report"]:
-                loads = 0
-            else:
-                loads = float(self.coordinator.data["report"]["loads"])
+        if "loads" not in self.coordinator.data["report"]:
+            loads = 0
+        else:
+            loads = float(self.coordinator.data["report"]["loads"])
 
-            if "chargeEnergyToTal" not in self.coordinator.data["report"]:
-                charge = 0
-            else:
-                charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
+        if "chargeEnergyToTal" not in self.coordinator.data["report"]:
+            charge = 0
+        else:
+            charge = float(self.coordinator.data["report"]["chargeEnergyToTal"])
 
-            if "feedin" not in self.coordinator.data["report"]:
-                feedIn = 0
-            else:
-                feedIn = float(self.coordinator.data["report"]["feedin"])
+        if "feedin" not in self.coordinator.data["report"]:
+            feedIn = 0
+        else:
+            feedIn = float(self.coordinator.data["report"]["feedin"])
 
-            if "gridConsumption" not in self.coordinator.data["report"]:
-                gridConsumption = 0
-            else:
-                gridConsumption = float(self.coordinator.data["report"]["gridConsumption"])
+        if "gridConsumption" not in self.coordinator.data["report"]:
+            gridConsumption = 0
+        else:
+            gridConsumption = float(self.coordinator.data["report"]["gridConsumption"])
 
-            if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
-                discharge = 0
-            else:
-                discharge = float(self.coordinator.data["report"]["dischargeEnergyToTal"])
+        if "dischargeEnergyToTal" not in self.coordinator.data["report"]:
+            discharge = 0
+        else:
+            discharge = float(self.coordinator.data["report"]["dischargeEnergyToTal"])
 
-            energysolar = round((loads + charge + feedIn - gridConsumption - discharge),3)
-            if energysolar<0:
-                energysolar=0
-            return round(energysolar,3)
-        return None
+        energysolar = round((loads + charge + feedIn - gridConsumption - discharge),3)
+        if energysolar<0:
+            energysolar=0
+        return round(energysolar,3)
 
 
 class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
@@ -1230,44 +1223,42 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "loadsPower" not in self.coordinator.data["raw"]:
-                loads = 0
-            else:
-                loads = float(self.coordinator.data["raw"]["loadsPower"])
+        if "loadsPower" not in self.coordinator.data["raw"]:
+            loads = 0
+        else:
+            loads = float(self.coordinator.data["raw"]["loadsPower"])
 
-            if "batChargePower" not in self.coordinator.data["raw"]:
+        if "batChargePower" not in self.coordinator.data["raw"]:
+            charge = 0
+        else:
+            if self.coordinator.data["raw"]["batChargePower"] is None:
                 charge = 0
             else:
-                if self.coordinator.data["raw"]["batChargePower"] is None:
-                    charge = 0
-                else:
-                    charge = float(self.coordinator.data["raw"]["batChargePower"])
+                charge = float(self.coordinator.data["raw"]["batChargePower"])
 
-            if "feedinPower" not in self.coordinator.data["raw"]:
-                feedin = 0
-            else:
-                feedIn = float(self.coordinator.data["raw"]["feedinPower"])
+        if "feedinPower" not in self.coordinator.data["raw"]:
+            feedin = 0
+        else:
+            feedIn = float(self.coordinator.data["raw"]["feedinPower"])
 
-            if "gridConsumptionPower" not in self.coordinator.data["raw"]:
-                gridConsumption = 0
-            else:
-                gridConsumption = float(self.coordinator.data["raw"]["gridConsumptionPower"])
+        if "gridConsumptionPower" not in self.coordinator.data["raw"]:
+            gridConsumption = 0
+        else:
+            gridConsumption = float(self.coordinator.data["raw"]["gridConsumptionPower"])
 
-            if "batDischargePower" not in self.coordinator.data["raw"]:
+        if "batDischargePower" not in self.coordinator.data["raw"]:
+            discharge = 0
+        else:
+            if self.coordinator.data["raw"]["batDischargePower"] is None:
                 discharge = 0
             else:
-                if self.coordinator.data["raw"]["batDischargePower"] is None:
-                    discharge = 0
-                else:
-                    discharge = float(self.coordinator.data["raw"]["batDischargePower"])
+                discharge = float(self.coordinator.data["raw"]["batDischargePower"])
 
-            #check if what was returned (that some time was negative) is <0, so fix it
-            total = (loads + charge + feedIn - gridConsumption - discharge)
-            if total<0:
-                total=0
-            return round(total,3)
-        return None
+        #check if what was returned (that some time was negative) is <0, so fix it
+        total = (loads + charge + feedIn - gridConsumption - discharge)
+        if total<0:
+            total=0
+        return round(total,3)
 
 
 class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
@@ -1449,9 +1440,8 @@ class FoxESSResponseTime(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "ResponseTime" not in self.coordinator.data["raw"]:
-                _LOGGER.debug("ResponseTime None")
-            else:
-                return self.coordinator.data["raw"]["ResponseTime"]
+        if "ResponseTime" not in self.coordinator.data["raw"]:
+            _LOGGER.debug("ResponseTime None")
+        else:
+            return self.coordinator.data["raw"]["ResponseTime"]
         return None
