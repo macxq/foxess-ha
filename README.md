@@ -118,6 +118,8 @@ T Power | kW
 T Volt | V
 Reactive Power | kVar
 Energy Generated  |  kWh 
+Energy Generated Month  |  kWh 
+Energy Throughput | kWh
 Grid Consumption  |  kWh 
 FeedIn  |  kWh  
 Solar  |  kWh 

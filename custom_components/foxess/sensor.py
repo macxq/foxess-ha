@@ -68,7 +68,7 @@ METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DEFAULT_TIMEOUT = 90 # increase the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 65 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -279,6 +279,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSBatMinSoC(coordinator, name, deviceID),
         FoxESSBatMinSoConGrid(coordinator, name, deviceID),
         FoxESSSolarPower(coordinator, name, deviceID),
+        FoxESSEnergyThroughput(coordinator, name, deviceID),
         FoxESSEnergySolar(coordinator, name, deviceID),
         FoxESSInverter(coordinator, name, deviceID),
         FoxESSPowerString(coordinator, name, deviceID, "Generation Power", "-generation-power", "generationPower"),
@@ -288,6 +289,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSPowerString(coordinator, name, deviceID, "Bat Charge Power", "bat-charge-power", "batChargePower"),
         FoxESSPowerString(coordinator, name, deviceID, "Load Power", "load-power", "loadsPower"),
         FoxESSEnergyGenerated(coordinator, name, deviceID),
+        FoxESSEnergyGeneratedMonth(coordinator, name, deviceID),
         FoxESSEnergyGridConsumption(coordinator, name, deviceID),
         FoxESSEnergyFeedin(coordinator, name, deviceID),
         FoxESSEnergyBatCharge(coordinator, name, deviceID),
@@ -538,7 +540,19 @@ async def getReportDailyGeneration(hass, allData, apiKey, deviceSN, deviceID):
                 _LOGGER.debug(f"OA Daily Generation Report data, today has no value: {parsed} set to 0")
             else:
                 allData["reportDailyGeneration"]["value"] = parsed['today']
-                _LOGGER.debug(f"OA Daily Generation Report data: {parsed} and todays value {parsed['today']} ")
+                _LOGGER.debug(f"OA Daily Generation Report data: todays value {parsed['today']} ")
+            if "month" not in parsed:
+                allData["reportDailyGeneration"]["month"] = 0
+                _LOGGER.debug(f"OA Daily Generation Report data, month has no value: {parsed} set to 0")
+            else:
+                allData["reportDailyGeneration"]["month"] = parsed['month']
+                _LOGGER.debug(f"OA Daily Generation Report data: month value {parsed['month']} ")
+            if "cumulative" not in parsed:
+                allData["reportDailyGeneration"]["cumulative"] = 0
+                _LOGGER.debug(f"OA Daily Generation Report data, cumulative has no value: {parsed} set to 0")
+            else:
+                allData["reportDailyGeneration"]["cumulative"] = parsed['cumulative']
+                _LOGGER.debug(f"OA Daily Generation Report data: cumulative value {parsed['cumulative']} ")
             return False
         else:
             _LOGGER.debug(f"OA Daily Generation Report Bad Response: {response} "+ restOAgen.data)
@@ -862,6 +876,76 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
                 energygenerated = 0
             else:
                 energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
+                if energygenerated > 0:
+                    energygenerated = round(energygenerated,3)
+                else:
+                    energygenerated = 0
+            return energygenerated
+        return None
+
+class FoxESSEnergyGeneratedMonth(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Energy Generated Month")
+        self._attr_name = name+" - Energy Generated Month"
+        self._attr_unique_id = deviceID+"energy-generated-month"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if "month" not in self.coordinator.data["reportDailyGeneration"]:
+            _LOGGER.debug("reportDailyGeneration month None")
+        else:
+            if self.coordinator.data["reportDailyGeneration"]["month"] == 0:
+                energygenerated = 0
+            else:
+                energygenerated = self.coordinator.data["reportDailyGeneration"]["month"]
+                if energygenerated > 0:
+                    energygenerated = round(energygenerated,3)
+                else:
+                    energygenerated = 0
+            return energygenerated
+        return None
+
+class FoxESSEnergyThroughput(CoordinatorEntity, SensorEntity):
+
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Energy Throughput")
+        self._attr_name = name+" - Energy Throughput"
+        self._attr_unique_id = deviceID+"energy-throughput"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if "energyThroughput" not in self.coordinator.data["raw"]:
+            _LOGGER.debug("raw Energy Throughput None")
+        else:
+            if self.coordinator.data["raw"]["energyThroughput"] == 0:
+                energygenerated = 0
+            else:
+                energygenerated = self.coordinator.data["raw"]["energyThroughput"]
                 if energygenerated > 0:
                     energygenerated = round(energygenerated,3)
                 else:
