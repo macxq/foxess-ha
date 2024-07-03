@@ -198,10 +198,10 @@ The integration paces the number of API calls that are made, with the following 
 - Site status and plant details - every 15 minutes
 - Real time variables - every 5 minutes
 - Cumulative total reports (generation, feedin, gridConsumption, BatterychargeTotal, Batterydischargetotal, home load) - every 15 minutes
-- Daily Generation report (Daily Energy Generated - 'total yield') - every 30 minutes
-- Battery minSoC settings - every 30 minutes
+- Daily Generation report (Daily Energy Generated - 'total yield') - every 60 minutes
+- Battery minSoC settings - every 60 minutes
 
-The integration is using approximately 24 API calls an hour (576 a day and well within the 1,440).
+The integration is using approximately 22 API calls an hour (528 a day and well within the 1,440).
 
 If you have multiple inverters in your account, you will receive 1,440 calls per inverter, so for 2 inverters you will have 2,880 api calls.
 
