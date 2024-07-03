@@ -68,7 +68,7 @@ METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DEFAULT_TIMEOUT = 65 # increase the size of inherited timeout, the API is a bit slow
+DEFAULT_TIMEOUT = 75 # increase the size of inherited timeout, the API is a bit slow
 
 ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
@@ -143,52 +143,46 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         TSlice = TimeSlice[deviceSN] + 1 # get the time slice for the current device and increment it
         TimeSlice[deviceSN] = TSlice
         if (TSlice % 5 == 0):
-            _LOGGER.debug(f"TimeSlice Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
-
+            _LOGGER.debug(f"Main Poll, interval: {deviceSN}, {TimeSlice[deviceSN]}")
             # try the openapi see if we get a response
-            if TSlice==0 or TSlice==15: # get device detail at startup, then every 15 minutes to save api calls
-                addfail = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
-            else:
-                addfail = 0
-
-            if addfail == 0:
+            getError=False
+            if (TSlice % 15 == 0):
+                # get device detail at startup, then every 15 minutes to save api calls
+                getError = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
+                await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
+            if getError==False:
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
                 else:
                     statetest = 0
                 _LOGGER.debug(f" Statetest {statetest}")
-
                 if statetest in [1,2]:
                     allData["online"] = True
                     if TSlice==0:
-                        # do this at startup and then every 30 minutes
-                        addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey) # read in battery settings where fitted, poll every 15 mins
+                        # read in battery settings if fitted at startup, then every 60 mins
+                        addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey)
+                        await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, allData, apiKey, deviceSN, deviceID)
-                    if getError == False:
-                        if TSlice==0 or TSlice==15: # do this at startup, every 15 minutes and on the hour change
+                    if getError==False:
+                        if (TSlice % 15 == 0): # do this at startup, every 15 minutes and on the hour change
+                            await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
                             getError = await getReport(hass, allData, apiKey, deviceSN, deviceID)
-                            if getError == False:
+                            if getError==False:
                                 if TSlice==0:
-                                    # do this at startup, then every 30 minutes
+                                    # get daily generation at startup, then every 60 minutes
+                                    await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
                                     getError = await getReportDailyGeneration(hass, allData, apiKey, deviceSN, deviceID)
-                                    if getError == True:
-                                        allData["online"] = False
-                                        TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
+                                    if getError==True:
                                         _LOGGER.debug("getReportDailyGeneration False")
                             else:
-                                allData["online"] = False
-                                TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                                 _LOGGER.debug("getReport False")
-
                     else:
-                        allData["online"] = False
-                        TSlice=RETRY_NEXT_SLOT # failed to get data so try again in 1 minute
                         _LOGGER.debug("getRaw False")
                 else:
                     if statetest==3:
-                        # The inverter has gone off-line, no raw data polling, don't update entities
-                        # and retry device detail call every 5 minutes until it comes back on-line
+                        # The inverter is off-line, no raw data polling, don't update entities
+                        # retry device detail call every 5 minutes until it comes back on-line
                         allData["online"] = False
                         TSlice = 25 # forces a retry on device detail in 5 minutes
                         _LOGGER.debug(f" Inverter off-line set online flag false for SN:{deviceSN}")
@@ -196,12 +190,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 if allData["online"] == False:
                     _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
             else:
-                _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute.")
-                TSlice=RETRY_NEXT_SLOT # failed to get data so try again in a minute
+                _LOGGER.warning(f"{name} has Cloud timeout fetching Device Detail, will retry in 1 minute.")
+
+            if getError != False:
+                allData["online"] = False
+                if TSlice != 0:
+                    TSlice=TSlice-1 # failed to get specific detail so retry slot in 1 minute
+                else:
+                    TSlice=RETRY_NEXT_SLOT # failed to get full data, try again in 1 minute
 
         # actions here are every minute
-        if TSlice>=29:
-            TSlice=RETRY_NEXT_SLOT # reset timeslice and start again from 0
+        if TSlice>=59:
+            TSlice=RETRY_NEXT_SLOT # reset timeslot, ready for full data fetch at 0
         _LOGGER.debug(f"Auxilliary TimeSlice {deviceSN}, {TSlice}")
 
         if LastHour != hournow:
@@ -360,6 +360,7 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_DETAIL
     _LOGGER.debug("OADevice Detail fetch " + path + deviceSN)
+    timestamp = round(time.time() * 1000)
 
     restOADeviceDetail = RestData(hass, METHOD_GET, path + deviceSN, DEFAULT_ENCODING,  None, headerData, None, None, DEFAULT_VERIFY_SSL, SSLCipherList.PYTHON_DEFAULT, DEFAULT_TIMEOUT)
     await restOADeviceDetail.async_update()
@@ -370,6 +371,11 @@ async def getOADeviceDetail(hass, allData, deviceSN, apiKey):
     else:
         response = json.loads(restOADeviceDetail.data)
         if response["errno"] == 0 and response["msg"] == 'success' :
+            ResponseTime = round(time.time() * 1000) - timestamp
+            if ResponseTime > 0:
+                allData['raw']['ResponseTime'] = ResponseTime
+            else:
+                allData['raw']['ResponseTime'] = 0
             _LOGGER.debug(f"OA Device Detail Good Response: {response['result']}")
             result = response['result']
             allData['addressbook'] = result
@@ -420,7 +426,7 @@ async def getOABatterySettings(hass, allData, deviceSN, apiKey):
                 _LOGGER.debug(f"OA Battery Settings read MinSoc: {minSoc}, MinSocOnGrid: {minSocOnGrid}")
                 return False
             else:
-                _LOGGER.debug(f"OA Battery Settings Bad Response: {response}")
+                _LOGGER.error(f"OA Battery Settings Bad Response: {response}")
                 return True
     else:
         # device detail reports no battery fitted so reset these variables to show unknown
@@ -593,7 +599,7 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
     await restOADeviceVariables.async_update()
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == '':
-        _LOGGER.debug("Unable to get OA Device Variables from FoxESS Cloud")
+        _LOGGER.debug("Unable to get OA Variables from FoxESS Cloud")
         return True
     else:
         # Openapi responded correctly
@@ -607,7 +613,7 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
             test = json.loads(restOADeviceVariables.data)['result']
             result = test[0].get('datas')
-            _LOGGER.debug(f"OA Device Variables Good Response: {result}")
+            _LOGGER.debug(f"OA Variables Good Response: {result}")
             # allData['raw'] = {}
             for item in result: # json.loads(result): # restOADeviceVariables.data)['result']:
                 variableName = item['variable']
