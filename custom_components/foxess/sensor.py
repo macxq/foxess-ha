@@ -35,7 +35,7 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfElectricCurrent,
     UnitOfFrequency,
-    POWER_VOLT_AMPERE_REACTIVE,
+    UnitOfReactivePower,
     PERCENTAGE,
 )
 from homeassistant.helpers.update_coordinator import (
@@ -88,6 +88,7 @@ CONF_APIKEY = "apiKey"
 CONF_DEVICESN = "deviceSN"
 CONF_DEVICEID = "deviceID"
 CONF_SYSTEM_ID = "system_id"
+CONF_EXTPV = "extendPV"
 RETRY_NEXT_SLOT = -1
 
 DEFAULT_NAME = "FoxESS"
@@ -104,6 +105,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required(CONF_DEVICESN): cv.string,
         vol.Required(CONF_DEVICEID): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_EXTPV): cv.boolean,
     }
 )
 
@@ -116,10 +118,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     deviceID = config.get(CONF_DEVICEID)
     deviceSN = config.get(CONF_DEVICESN)
     apiKey = config.get(CONF_APIKEY)
+    ExtPV = config.get(CONF_EXTPV)
     _LOGGER.debug("API Key:" + apiKey)
     _LOGGER.debug("Device SN:" + deviceSN)
     _LOGGER.debug("Device ID:" + deviceID)
     _LOGGER.debug( f"FoxESS Scan Interval: {SCAN_MINUTES} minutes" )
+    _LOGGER.debug(f"Extended PV: {ExtPV}" )
+    if ExtPV != True:
+        ExtPV = False
+    else:
+        ExtPV = True
+        _LOGGER.warn("Extended PV 1-18 strings enabled" )
     TimeSlice = {}
     TimeSlice[deviceSN] = RETRY_NEXT_SLOT
     last_api = 0
@@ -149,7 +158,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             if (TSlice % 15 == 0):
                 # get device detail at startup, then every 15 minutes to save api calls
                 getError = await getOADeviceDetail(hass, allData, deviceSN, apiKey)
-                await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
+                await asyncio.sleep(2) # enforced sleep to limit demand on OpenAPI
             if getError==False:
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
@@ -161,17 +170,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     if TSlice==0:
                         # read in battery settings if fitted at startup, then every 60 mins
                         addfail = await getOABatterySettings(hass, allData, deviceSN, apiKey)
-                        await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
+                        await asyncio.sleep(2) # enforced sleep to limit demand on OpenAPI
                     # main real time data fetch, followed by reports
                     getError = await getRaw(hass, allData, apiKey, deviceSN, deviceID)
                     if getError==False:
                         if (TSlice % 15 == 0): # do this at startup, every 15 minutes and on the hour change
-                            await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
+                            await asyncio.sleep(2) # enforced sleep to limit demand on OpenAPI
                             getError = await getReport(hass, allData, apiKey, deviceSN, deviceID)
                             if getError==False:
                                 if TSlice==0:
                                     # get daily generation at startup, then every 60 minutes
-                                    await asyncio.sleep(5) # enforced sleep to limit demand on OpenAPI
+                                    await asyncio.sleep(2) # enforced sleep to limit demand on OpenAPI
                                     getError = await getReportDailyGeneration(hass, allData, apiKey, deviceSN, deviceID)
                                     if getError==True:
                                         _LOGGER.debug("getReportDailyGeneration False")
@@ -230,6 +239,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         _LOGGER.error(
             "FoxESS Cloud initialisation failed, Fatal Error - correct error and restart Home Assistant")
         return False
+
 
     async_add_entities([
         FoxESSCurrent(coordinator, name, deviceID, "PV1 Current", "pv1-current", "pv1Current"),
@@ -299,6 +309,46 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSResponseTime(coordinator, name, deviceID),
         FoxESSRunningState(coordinator, name, deviceID, "Running State", "running-state", "runningState")
     ])
+
+    if ExtPV:
+        async_add_entities([
+            FoxESSCurrent(coordinator, name, deviceID, "PV7 Current", "pv7-current", "pv7Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV7 Power", "pv7-power", "pv7Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV7 Volt", "pv7-volt", "pv7Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV8 Current", "pv8-current", "pv8Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV8 Power", "pv8-power", "pv8Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV8 Volt", "pv8-volt", "pv8Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV9 Current", "pv9-current", "pv9Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV9 Power", "pv9-power", "pv9Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV9 Volt", "pv9-volt", "pv9Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV10 Current", "pv10-current", "pv10Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV10 Power", "pv10-power", "pv10Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV10 Volt", "pv10-volt", "pv10Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV11 Current", "pv11-current", "pv11Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV11 Power", "pv11-power", "pv11Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV11 Volt", "pv11-volt", "pv11Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV12 Current", "pv12-current", "pv12Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV12 Power", "pv12-power", "pv12Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV12 Volt", "pv12-volt", "pv12Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV13 Current", "pv13-current", "pv13Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV13 Power", "pv13-power", "pv13Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV13 Volt", "pv13-volt", "pv13Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV14 Current", "pv14-current", "pv14Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV14 Power", "pv14-power", "pv14Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV14 Volt", "pv14-volt", "pv14Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV15 Current", "pv15-current", "pv15Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV15 Power", "pv15-power", "pv15Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV15 Volt", "pv15-volt", "pv15Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV16 Current", "pv16-current", "pv16Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV16 Power", "pv16-power", "pv16Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV16 Volt", "pv16-volt", "pv16Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV17 Current", "pv17-current", "pv17Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV17 Power", "pv17-power", "pv17Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV17 Volt", "pv17-volt", "pv17Volt"),
+            FoxESSCurrent(coordinator, name, deviceID, "PV18 Current", "pv18-current", "pv18Current"),
+            FoxESSPower(coordinator, name, deviceID, "PV18 Power", "pv18-power", "pv18Power"),
+            FoxESSVolt(coordinator, name, deviceID, "PV18 Volt", "pv18-volt", "pv18Volt")
+        ])
 
 
 class GetAuth:
@@ -800,7 +850,7 @@ class FoxESSReactivePower(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.REACTIVE_POWER
-    _attr_native_unit_of_measurement = POWER_VOLT_AMPERE_REACTIVE
+    _attr_native_unit_of_measurement = UnitOfReactivePower.VOLT_AMPERE_REACTIVE
 
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
