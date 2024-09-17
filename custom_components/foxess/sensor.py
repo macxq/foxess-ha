@@ -298,8 +298,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         FoxESSPowerString(coordinator, name, deviceID, "Bat Discharge Power", "bat-discharge-power", "batDischargePower"),
         FoxESSPowerString(coordinator, name, deviceID, "Bat Charge Power", "bat-charge-power", "batChargePower"),
         FoxESSPowerString(coordinator, name, deviceID, "Load Power", "load-power", "loadsPower"),
-        FoxESSEnergyGenerated(coordinator, name, deviceID),
-        FoxESSEnergyGeneratedMonth(coordinator, name, deviceID),
+        FoxESSEnergyGenerated(coordinator, name, deviceID, "Energy Generated", "energy-generated", "value"),
+        FoxESSEnergyGenerated(coordinator, name, deviceID, "Energy Generated Month", "energy-generated-month", "month"),
+        FoxESSEnergyGenerated(coordinator, name, deviceID, "Energy Generated Cumulative", "energy-generated-cumulative", "cumulative"),
         FoxESSEnergyGridConsumption(coordinator, name, deviceID),
         FoxESSEnergyFeedin(coordinator, name, deviceID),
         FoxESSEnergyBatCharge(coordinator, name, deviceID),
@@ -903,18 +904,20 @@ class FoxESSPowerFactor(CoordinatorEntity, SensorEntity):
                 return self.coordinator.data["raw"]["PowerFactor"]
         return None
 
-
 class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue):
         super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - Energy Generated")
-        self._attr_name = name+" - Energy Generated"
-        self._attr_unique_id = deviceID+"energy-generated"
+        self._nameValue = nameValue
+        self._uniqueValue = uniqueValue
+        self._keyValue = keyValue
+        _LOGGER.debug(f"Initiating Entity - {self._nameValue}")
+        self._attr_name = f"{name} - {self._nameValue}"
+        self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
         self.status = namedtuple(
             "status",
             [
@@ -924,49 +927,14 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
         )
 
     @property
-    def native_value(self) -> str | None:
-        if "value" not in self.coordinator.data["reportDailyGeneration"]:
-            _LOGGER.debug("reportDailyGeneration value None")
+    def native_value(self) -> float | None:
+        if self._keyValue not in self.coordinator.data["reportDailyGeneration"]:
+            _LOGGER.debug(f"{self._keyValue} None")
         else:
-            if self.coordinator.data["reportDailyGeneration"]["value"] == 0:
+            if self.coordinator.data["reportDailyGeneration"][self._keyValue] == 0:
                 energygenerated = 0
             else:
-                energygenerated = self.coordinator.data["reportDailyGeneration"]["value"]
-                if energygenerated > 0:
-                    energygenerated = round(energygenerated,3)
-                else:
-                    energygenerated = 0
-            return energygenerated
-        return None
-
-class FoxESSEnergyGeneratedMonth(CoordinatorEntity, SensorEntity):
-
-    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-
-    def __init__(self, coordinator, name, deviceID):
-        super().__init__(coordinator=coordinator)
-        _LOGGER.debug("Initiating Entity - Energy Generated Month")
-        self._attr_name = name+" - Energy Generated Month"
-        self._attr_unique_id = deviceID+"energy-generated-month"
-        self.status = namedtuple(
-            "status",
-            [
-                ATTR_DATE,
-                ATTR_TIME,
-            ],
-        )
-
-    @property
-    def native_value(self) -> str | None:
-        if "month" not in self.coordinator.data["reportDailyGeneration"]:
-            _LOGGER.debug("reportDailyGeneration month None")
-        else:
-            if self.coordinator.data["reportDailyGeneration"]["month"] == 0:
-                energygenerated = 0
-            else:
-                energygenerated = self.coordinator.data["reportDailyGeneration"]["month"]
+                energygenerated = self.coordinator.data["reportDailyGeneration"][self._keyValue]
                 if energygenerated > 0:
                     energygenerated = round(energygenerated,3)
                 else:
