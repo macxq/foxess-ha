@@ -188,6 +188,15 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                                 _LOGGER.debug("getReport False")
                     else:
                         _LOGGER.debug("getRaw False")
+                        if statetest==2:
+                            # The inverter is in alarm, don't check every minute
+                            _LOGGER.debug(f" Inverter in alarm, slowing retry response for SN:{deviceSN}")
+                        else:
+                            # The get variables api call failed, leave it 5 minutes
+                            _LOGGER.debug(f" Failed to get device variables, slowing retry response for SN:{deviceSN}")
+                        allData["online"] = False
+                        getError = False
+                        TSlice = 25 # forces a retry on device detail in 5 minutes
                 else:
                     if statetest==3:
                         # The inverter is off-line, no raw data polling, don't update entities
