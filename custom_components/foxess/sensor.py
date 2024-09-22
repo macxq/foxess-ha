@@ -89,6 +89,7 @@ CONF_DEVICESN = "deviceSN"
 CONF_DEVICEID = "deviceID"
 CONF_SYSTEM_ID = "system_id"
 CONF_EXTPV = "extendPV"
+CONF_GET_VARIABLES = "Restrict"
 RETRY_NEXT_SLOT = -1
 
 DEFAULT_NAME = "FoxESS"
@@ -106,6 +107,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required(CONF_DEVICEID): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_EXTPV): cv.boolean,
+        vol.Optional(CONF_GET_VARIABLES): cv.boolean,
     }
 )
 
@@ -113,12 +115,13 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global LastHour, TimeSlice, last_api
+    global LastHour, TimeSlice, last_api, RestrictGetVar
     name = config.get(CONF_NAME)
     deviceID = config.get(CONF_DEVICEID)
     deviceSN = config.get(CONF_DEVICESN)
     apiKey = config.get(CONF_APIKEY)
     ExtPV = config.get(CONF_EXTPV)
+    RestrictGetVar = config.get(CONF_GET_VARIABLES)
     _LOGGER.debug("API Key:" + apiKey)
     _LOGGER.debug("Device SN:" + deviceSN)
     _LOGGER.debug("Device ID:" + deviceID)
@@ -129,6 +132,12 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     else:
         ExtPV = True
         _LOGGER.warn("Extended PV 1-18 strings enabled" )
+    _LOGGER.debug(f"Restrict Variables: {RestrictGetVar}" )
+    if RestrictGetVar != True:
+        RestrictGetVar = False
+    else:
+        RestrictGetVar = True
+        _LOGGER.warn("Get Variables is in restricted mode" )
     TimeSlice = {}
     TimeSlice[deviceSN] = RETRY_NEXT_SLOT
     last_api = 0
@@ -631,7 +640,25 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
     # "deviceSN" used for OpenAPI and it only fetches the real time data
 
-    rawData =  '{"sn":"'+deviceSN+'" }'
+    if RestrictGetVar:
+        _LOGGER.debug("Getting Device Variable in restricted mode" )
+        rawData =  '{"sn":"'+deviceSN+'","variables":["ambientTemperation", \
+                                    "batChargePower","batCurrent","batCurrent_1","batCurrent_2","batDischargePower", \
+                                    "batTemperature","batTemperature_1","batTemperature_2","batVolt", "batVolt_1", "batVolt_2",\
+                                    "boostTemperation", "chargeTemperature", "dspTemperature", \
+                                    "epsCurrentR","epsCurrentS","epsCurrentT","epsPower","epsPowerR","epsPowerS","epsPowerT","epsVoltR","epsVoltS","epsVoltT", \
+                                    "feedinPower", "generationPower","gridConsumptionPower", \
+                                    "input","invBatCurrent","invBatPower","invBatVolt","invTemperation", \
+                                    "loadsPower","loadsPowerR","loadsPowerS","loadsPowerT", \
+                                    "meterPower","meterPower2","meterPowerR","meterPowerS","meterPowerT","PowerFactor", \
+                                    "pv1Current","pv1Power","pv1Volt","pv2Current","pv2Power","pv2Volt", \
+                                    "pv3Current","pv3Power","pv3Volt","pv4Current","pv4Power","pv4Volt","pvPower", \
+                                    "RCurrent","ReactivePower","RFreq","RPower","RVolt", \
+                                    "SCurrent","SFreq","SoC","SPower","SVolt", \
+                                    "TCurrent","TFreq","TPower","TVolt", "SoC_1","Soc_2", \
+                                    "ResidualEnergy","energyThroughput","runningState","currentFaultCount"] }'
+    else:
+        rawData =  '{"sn":"'+deviceSN+'" }'
 
     _LOGGER.debug("getRaw OA request:" +rawData)
 
