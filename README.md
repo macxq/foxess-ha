@@ -59,6 +59,14 @@ sensor:
    It can be found in the UUID on the foxesscloud in the url path of the `Inverter Details` page; make sure that this is exact value from inverter details page address between the %2522 and %2522 characters:
 ![112](https://github.com/macxq/foxess-ha/assets/123640536/1e024286-7215-4bab-8e7d-5dfe5e719275)
 
+- Fox R series or inverters with more than 6 PV strings - if you have an inverter that supports more than 16 PV strings, please add the following switch `extendPV: true` to your platform config and the integration will attempt to read PV strings 7-18 volts, current power sensors.
+   ```
+       deviceID: enter_your_inverter_serial_number
+       deviceSN: enter_your_inverter_serial_number
+       apiKey: enter_your_personal_api_key
+       extendPV: true
+   ```
+
 
 - Multi-inverter support - if you have more than one FoxESS device in your installation, you can leverage the optional `name` field in your config,
    ```
