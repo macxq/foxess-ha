@@ -215,7 +215,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         _LOGGER.debug(f" Inverter off-line set online flag false for SN:{deviceSN}")
 
                 if allData["online"] == False:
-                    _LOGGER.warning(f"{name} has Cloud timeout or the Inverter is off-line, connection will be retried in 1 minute")
+                    if not getError:
+                        _LOGGER.warning(f"{name} Inverter is off-line, waiting, will retry in 1 minute")
+                    else:
+                        _LOGGER.warning(f"{name} has Cloud timeout, connection will be retried in 1 minute")
             else:
                 _LOGGER.warning(f"{name} has Cloud timeout fetching Device Detail, will retry in 1 minute.")
 
@@ -720,6 +723,22 @@ async def getRaw(hass, allData, apiKey, deviceSN, deviceID):
 
                 allData['raw'][variableName] = variableValue
                 _LOGGER.debug( f"Var: {variableName}, SN: {deviceSN} set to {allData['raw'][variableName]}" )
+
+                if variableName=='runningState' and ('hasBattery' in allData['addressbook']):
+                    hasBat = allData['addressbook']['hasBattery']
+                    if not hasBat:
+                        # solar only inverter
+                        _LOGGER.debug( f"TestState: {variableValue}, hasBat: {hasBat} online: {allData['online']}" )
+                        if variableValue is not None:
+                            if variableValue==161:
+                                # waiting and solar only so set off-line flag
+                                allData["online"] = False
+                                _LOGGER.debug( f"Waiting so set off-line state, TestState: {variableValue}, hasBat: {hasBat} online: {allData['online']}" )
+                            elif variableValue==163 and not allData["online"]:
+                                # on-grid but showing off-line wait for it to be set on-line by OADeviceDetail
+                                # allData["online"] = False
+                                _LOGGER.debug( f"Inverter on-grid but off-line wait for OADevice to confirm, TestState: {variableValue}, hasBat: {hasBat}" )
+
             return False
         else:
             _LOGGER.debug(f"OA Device Variables Bad Response: {response}")
@@ -1259,7 +1278,7 @@ class FoxESSRunningState(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+        if self.coordinator.data["raw"]:
             if self._keyValue not in self.coordinator.data["raw"]:
                 _LOGGER.debug(f"{self._keyValue} None")
             else:
