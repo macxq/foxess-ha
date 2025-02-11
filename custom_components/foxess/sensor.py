@@ -1129,7 +1129,7 @@ async def getRaw(hass, allData, apiKey, devicesn):
                             allData["online"],
                         )
                         if variableValue is not None:
-                            if variableValue == "161" or variableValue == "162":
+                            if variableValue == "161":
                                 # waiting and solar only so set off-line flag
                                 allData["online"] = False
                                 _LOGGER.debug(
