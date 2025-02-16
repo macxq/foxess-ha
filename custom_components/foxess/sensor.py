@@ -170,6 +170,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             if not geterror:
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
+                    if statetest in [3]:
+                        allData["raw"]["runningState"] = "164" # off-grid
                 else:
                     statetest = 0
                 _LOGGER.debug(" Statetest %s", statetest)
