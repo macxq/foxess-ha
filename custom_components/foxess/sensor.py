@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import namedtuple
 from datetime import timedelta
 from datetime import datetime
+from dateutil import parser
 import time
 import logging
 import json
@@ -171,7 +172,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
                     if statetest in [3]:
-                        allData["raw"]["runningState"] = "164" # off-grid
+                        allData["raw"]["runningState"] = "164"  # off-grid
                 else:
                     statetest = 0
                 _LOGGER.debug(" Statetest %s", statetest)
@@ -1087,6 +1088,50 @@ async def getRaw(hass, allData, apiKey, devicesn):
                 allData["raw"]["ResponseTime"] = 0
 
             test = json.loads(restOADeviceVariables.data)["result"]
+
+            timercv = test[0].get("time")
+            try:
+                # format is "2025-02-21 16:38:29 GMT+0000" strptime is useless at international dates, so work out the offset
+                # tsrcv = datetime.strptime(testt, "%Y-%m-%d %H:%M:%S %Z%z") fails on some countries
+                _LOGGER.debug("OA Variables time: %s ", timercv)
+                tzoffsetsign = timercv[23:24]
+                tzoffsethr = int(timercv[24:26])
+                tzoffsetmin = int(timercv[26:28])
+                if tzoffsetsign in ["+"]:
+                    tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * 1
+                else:
+                    tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * -1
+                tsrcv = (parser.parse(timercv, ignoretz=True)).timestamp()
+                tsrcv = tsrcv - tzoffset
+                _LOGGER.debug(
+                    "OA Variables tsrcv stamp: %s, offset: %s ", tsrcv, tzoffset
+                )
+            except:
+                tsrcv = 0
+            age = 0
+            _LOGGER.debug("OA Variables time: %s timestamp rcv:%s", timercv, tsrcv)
+            if tsrcv != 0:
+                testd = datetime.now()
+                tsnow = round(time.time())
+                age = round(tsnow - tsrcv)
+                _LOGGER.debug(
+                    "OA Variables time: %s vs %s timestamps r:%s now:%s, age: %s",
+                    timercv,
+                    testd,
+                    tsrcv,
+                    tsnow,
+                    age,
+                )
+                if age > 361:
+                    _LOGGER.debug(
+                        "OA Variables invalid age: %s vs %s timestamps r:%s now:%s, age: %s",
+                        timercv,
+                        testd,
+                        tsrcv,
+                        tsnow,
+                        age,
+                    )
+
             result = test[0].get("datas")
             _LOGGER.debug("OA Variables Good Response: %s", result)
             # allData['raw'] = {}
@@ -1133,13 +1178,21 @@ async def getRaw(hass, allData, apiKey, devicesn):
                         if variableValue is not None:
                             if variableValue == "161":
                                 # waiting and solar only so set off-line flag
-                                allData["online"] = False
-                                _LOGGER.debug(
-                                    "Waiting so set off-line state, TestState: %s, hasBat: %s online: %s",
-                                    variableValue,
-                                    hasBat,
-                                    allData["online"],
-                                )
+                                if age < 361:
+                                    _LOGGER.debug(
+                                        "Waiting but data less than 5 minutes old - allow sample, TestState: %s, hasBat: %s online: %s",
+                                        variableValue,
+                                        hasBat,
+                                        allData["online"],
+                                    )
+                                else:
+                                    allData["online"] = False
+                                    _LOGGER.debug(
+                                        "Waiting so set off-line state, TestState: %s, hasBat: %s online: %s",
+                                        variableValue,
+                                        hasBat,
+                                        allData["online"],
+                                    )
                             elif variableValue == "163" and not allData["online"]:
                                 # on-grid but showing off-line wait for it to be set on-line by OADeviceDetail
                                 # allData["online"] = False
