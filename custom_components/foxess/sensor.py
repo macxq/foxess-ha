@@ -1189,11 +1189,11 @@ async def getRaw(hass, allData, apiKey, devicesn):
                             allData["online"],
                         )
                         if variableValue is not None:
-                            if variableValue == "161":
+                            if variableValue == "161" or variableValue == "162":
                                 # waiting and solar only so set off-line flag
                                 if age < 361:
                                     _LOGGER.debug(
-                                        "Waiting but data less than 5 minutes old - allow sample, TestState: %s, hasBat: %s online: %s",
+                                        "Waiting but data less than 5 minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
                                         variableValue,
                                         hasBat,
                                         allData["online"],
