@@ -71,12 +71,10 @@ ATTR_DEVICE_SN = "deviceSN"
 ATTR_PLANTNAME = "plantName"
 ATTR_MODULESN = "moduleSN"
 ATTR_DEVICE_TYPE = "deviceType"
-ATTR_STATUS = "status"
-ATTR_COUNTRY = "country"
-ATTR_COUNTRYCODE = "countryCode"
-ATTR_CITY = "city"
-ATTR_ADDRESS = "address"
-ATTR_FEEDINDATE = "feedinDate"
+ATTR_MASTER = "masterVersion"
+ATTR_MANAGER = "managerVersion"
+ATTR_SLAVE = "slaveVersion"
+ATTR_BATTERYLIST = "batteryList"
 ATTR_LASTCLOUDSYNC = "lastCloudSync"
 
 BATTERY_LEVELS = {"High": 80, "Medium": 50, "Low": 25, "Empty": 10}
@@ -86,6 +84,7 @@ CONF_DEVICESN = "deviceSN"
 CONF_DEVICEID = "deviceID"
 CONF_SYSTEM_ID = "system_id"
 CONF_EXTPV = "extendPV"
+CONF_XTZONE = "xtZone"
 CONF_GET_VARIABLES = "Restrict"
 RETRY_NEXT_SLOT = -1
 
@@ -104,6 +103,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required(CONF_DEVICEID): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_EXTPV): cv.boolean,
+        vol.Optional(CONF_XTZONE): cv.boolean,
         vol.Optional(CONF_GET_VARIABLES): cv.boolean,
     }
 )
@@ -113,17 +113,19 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global LastHour, timeslice, last_api, RestrictGetVar
+    global LastHour, timeslice, last_api, RestrictGetVar, xtzone
     name = config.get(CONF_NAME)
     deviceID = config.get(CONF_DEVICEID)
     devicesn = config.get(CONF_DEVICESN)
     apiKey = config.get(CONF_APIKEY)
     ExtPV = config.get(CONF_EXTPV)
+    xtzone = config.get(CONF_XTZONE)
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     _LOGGER.debug("API Key: %s", apiKey)
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
     _LOGGER.debug("FoxESS Scan Interval: %s minutes", SCAN_MINUTES)
+    _LOGGER.debug("Cross Time Zone: %s", xtzone)
     _LOGGER.debug("Extended PV: %s", ExtPV)
     if ExtPV is not True:
         ExtPV = False
@@ -156,9 +158,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         global token, timeslice, LastHour
         hournow = datetime.now().strftime("%H")  # update hour now
         _LOGGER.debug("Time now: %s, last %s", hournow, LastHour)
-        tslice = (
-            timeslice[devicesn] + 1
-        )  # get the time slice for the current device and increment it
+        tslice = timeslice[devicesn] + 1  # increment current device time slice
         timeslice[devicesn] = tslice
         if tslice % 5 == 0:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
@@ -167,7 +167,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             if tslice % 15 == 0:
                 # get device detail at startup, then every 15 minutes to save api calls
                 geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
-                await asyncio.sleep(2)  # enforced sleep to limit demand on OpenAPI
+                await asyncio.sleep(1)  # OpenAPI demand
             if not geterror:
                 if allData["addressbook"]["status"] is not None:
                     statetest = int(allData["addressbook"]["status"])
@@ -180,28 +180,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     allData["online"] = True
                     if tslice == 0:
                         # read in battery settings if fitted at startup, then every 60 mins
-                        addfail = await getOABatterySettings(
-                            hass, allData, devicesn, apiKey
-                        )
-                        await asyncio.sleep(
-                            2
-                        )  # enforced sleep to limit demand on OpenAPI
+                        await getOABatterySettings(hass, allData, devicesn, apiKey)
+                        await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(hass, allData, apiKey, devicesn)
                     if not geterror:
-                        if (
-                            tslice % 15 == 0
-                        ):  # do this at startup, every 15 minutes and on the hour change
-                            await asyncio.sleep(
-                                2
-                            )  # enforced sleep to limit demand on OpenAPI
+                        if tslice % 15 == 0:  # do at startup and every 15 minutes
+                            await asyncio.sleep(1)  # OpenAPI demand limit
                             geterror = await getReport(hass, allData, apiKey, devicesn)
                             if not geterror:
                                 if tslice == 0:
                                     # get daily generation at startup, then every 60 minutes
-                                    await asyncio.sleep(
-                                        2
-                                    )  # enforced sleep to limit demand on OpenAPI
+                                    await asyncio.sleep(1)  # OpenAPI demand
                                     geterror = await getReportDailyGeneration(
                                         hass, allData, apiKey, devicesn
                                     )
@@ -411,6 +401,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC", "bat-soc", "SoC"),
             FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC1", "bat-soc1", "SoC_1"),
             FoxESSBatSoC(coordinator, name, deviceID, "Bat SoC2", "bat-soc2", "SoC_2"),
+            FoxESSBatSoC(coordinator, name, deviceID, "Bat SoH", "bat-soh", "SOH"),
             FoxESSPower(
                 coordinator,
                 name,
@@ -505,6 +496,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             FoxESSEnergyBatCharge(coordinator, name, deviceID),
             FoxESSEnergyBatDischarge(coordinator, name, deviceID),
             FoxESSEnergyLoad(coordinator, name, deviceID),
+            FoxESSPVEnergyTotal(coordinator, name, deviceID),
             FoxESSResidualEnergy(coordinator, name, deviceID),
             FoxESSResponseTime(coordinator, name, deviceID),
             FoxESSRunningState(
@@ -790,6 +782,7 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
                 _LOGGER.debug("OA Device Detail System has Battery: %s", testBattery)
             else:
                 _LOGGER.debug("OA Device Detail System has No Battery: %s", testBattery)
+                allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
             return False
         else:
             _LOGGER.error("OA Device Detail Bad Response: %s", response)
@@ -875,7 +868,7 @@ async def getReport(hass, allData, apiKey, devicesn):
         + now.strftime("%Y")
         + ',"month":'
         + month
-        + ',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads"]}'
+        + ',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads","PVEnergyTotal"]}'
     )
 
     _LOGGER.debug("getReport OA request: %s", reportData)
@@ -1097,19 +1090,39 @@ async def getRaw(hass, allData, apiKey, devicesn):
                 tzoffsetsign = timercv[23:24]
                 tzoffsethr = int(timercv[24:26])
                 tzoffsetmin = int(timercv[26:28])
+                tzfull = str(timercv[23:28])
+                _LOGGER.debug(
+                    "OA Variables tzoffsign: %s, hr: %s, min: %s, full: %s",
+                    tzoffsetsign,
+                    tzoffsethr,
+                    tzoffsetmin,
+                    tzfull,
+                )
                 if tzoffsetsign in ["+"]:
                     tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * 1
                 else:
                     tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * -1
                 tsrcv = (parser.parse(timercv, ignoretz=True)).timestamp()
-                tsrcv = tsrcv - tzoffset
-                _LOGGER.debug(
-                    "OA Variables tsrcv stamp: %s, offset: %s ", tsrcv, tzoffset
-                )
+                zulu = datetime.now().astimezone().strftime("%z")
+                if zulu != tzfull:
+                    if xtzone:
+                        _LOGGER.debug(
+                            "OA Variables tsrcv applying offset: %s, offset: %s, zulu: %s",
+                            tsrcv,
+                            tzoffset,
+                            zulu,
+                        )
+                        tsrcv = tsrcv - tzoffset
+                else:
+                    _LOGGER.debug(
+                        "OA Variables tsrcv is local: %s, zulu: %s, offset: %s ",
+                        tsrcv,
+                        zulu,
+                        tzoffset,
+                    )
             except:
                 tsrcv = 0
             age = 0
-            _LOGGER.debug("OA Variables time: %s timestamp rcv:%s", timercv, tsrcv)
             if tsrcv != 0:
                 testd = datetime.now()
                 tsnow = round(time.time())
@@ -1176,11 +1189,11 @@ async def getRaw(hass, allData, apiKey, devicesn):
                             allData["online"],
                         )
                         if variableValue is not None:
-                            if variableValue == "161":
+                            if variableValue == "161" or variableValue == "162":
                                 # waiting and solar only so set off-line flag
                                 if age < 361:
                                     _LOGGER.debug(
-                                        "Waiting but data less than 5 minutes old - allow sample, TestState: %s, hasBat: %s online: %s",
+                                        "Waiting but data less than 5 minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
                                         variableValue,
                                         hasBat,
                                         allData["online"],
@@ -1652,6 +1665,38 @@ class FoxESSEnergyLoad(CoordinatorEntity, SensorEntity):
         return None
 
 
+class FoxESSPVEnergyTotal(CoordinatorEntity, SensorEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - PV Energy Total")
+        self._attr_name = name + " - PVEnergyTotal"
+        self._attr_unique_id = deviceID + "PVEnergyTotal"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if "PVEnergyTotal" not in self.coordinator.data["report"]:
+            _LOGGER.debug("report PVEnergyTotal None")
+        else:
+            if self.coordinator.data["report"]["PVEnergyTotal"] == 0:
+                energyload = 0
+            else:
+                energyload = self.coordinator.data["report"]["PVEnergyTotal"]
+            # round
+            return round(energyload, 3)
+        return None
+
+
 class FoxESSInverter(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, name, deviceID):
         super().__init__(coordinator=coordinator)
@@ -1668,12 +1713,10 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
                 ATTR_PLANTNAME,
                 ATTR_MODULESN,
                 ATTR_DEVICE_TYPE,
-                ATTR_STATUS,
-                ATTR_COUNTRY,
-                ATTR_COUNTRYCODE,
-                ATTR_CITY,
-                ATTR_ADDRESS,
-                ATTR_FEEDINDATE,
+                ATTR_MASTER,
+                ATTR_MANAGER,
+                ATTR_SLAVE,
+                ATTR_BATTERYLIST,
                 ATTR_LASTCLOUDSYNC,
             ],
         )
@@ -1706,6 +1749,10 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
             ATTR_PLANTNAME: self.coordinator.data["addressbook"][ATTR_PLANTNAME],
             ATTR_MODULESN: self.coordinator.data["addressbook"][ATTR_MODULESN],
             ATTR_DEVICE_TYPE: self.coordinator.data["addressbook"][ATTR_DEVICE_TYPE],
+            ATTR_MASTER: self.coordinator.data["addressbook"][ATTR_MASTER],
+            ATTR_MANAGER: self.coordinator.data["addressbook"][ATTR_MANAGER],
+            ATTR_SLAVE: self.coordinator.data["addressbook"][ATTR_SLAVE],
+            ATTR_BATTERYLIST: self.coordinator.data["addressbook"][ATTR_BATTERYLIST],
             ATTR_LASTCLOUDSYNC: datetime.now(),
         }
 

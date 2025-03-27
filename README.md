@@ -90,7 +90,7 @@ sensor:
 
 HA Entity  | Measurement
 |---|---|
-Inverter |  string  `on-line/off-line/in-alarm`
+Inverter |  string  `on-line/off-line/in-alarm` - attributes Master, Manager, Slave versions & Battery details where fitted
 Generation Power  |  kW 
 Grid Consumption Power  |  kW  
 FeedIn Power  |  kW  
@@ -125,6 +125,7 @@ T Freq | Hz
 T Power | kW
 T Volt | V
 Reactive Power | kVar
+PV Production Total | kWh
 Energy Generated  |  kWh 
 Energy Generated Month  |  kWh 
 Energy Throughput | kWh
@@ -137,6 +138,7 @@ Bat Discharge  |  kWh
 Bat SoC | % (single battery systems)
 Bat SoC1 | % (dual battery systems)
 Bat SoC2 | % (dual battery systems)
+Bat SoH | % (single battery systems where BMS supports it)
 Inverter Bat Power | kW (negative=charging, positive=discharging)
 Inverter Bat Power2 | kW (dual battery systems
 Bat Temperature | °C 
