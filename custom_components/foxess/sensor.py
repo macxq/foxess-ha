@@ -1158,15 +1158,24 @@ async def getRaw(hass, allData, apiKey, devicesn):
                 else:
                     variableValue = 0
                     _LOGGER.debug("Variable %s no value, set to zero", variableName)
-                # fix for second battery items
+                # fix for various battery and scale items
                 if variableName == "SoC_1":
                     variableName = "SoC_1"  # do nothing for the moment, future release might align this correctly to use SoC
                 elif variableName == "batTemperature_1":
-                    variableName = "batTemperature"  # use same entity as for single battery systems
+                    variableName = "batTemperature"  # use entity for single battery systems
                 elif variableName == "invBatPower_1":
-                    variableName = (
-                        "invBatPower"  # use same entity as for single battery systems
-                    )
+                    variableName = "invBatPower"  # use entity for single battery systems
+                elif variableName == "ResidualEnergy":
+                    if item.get("unit") is not None:
+                        scale=item["unit"]
+                        if scale in ['1.0kWh', 'kWh', None]:
+                            variableValue = round((variableValue * 100),2)
+                            _LOGGER.debug("OA Variables ResidualEnergy Scale: *100 %s", scale)
+                        elif scale=="0.1kWh":
+                            variableValue = round((variableValue * 10),2)
+                            _LOGGER.debug("OA Variables ResidualEnergy Scale: *10 %s", scale)
+                        else:
+                            _LOGGER.debug("OA Variables ResidualEnergy Scale: %s", scale)
 
                 allData["raw"][variableName] = variableValue
                 _LOGGER.debug(
@@ -2073,7 +2082,8 @@ class FoxESSResidualEnergy(CoordinatorEntity, SensorEntity):
             else:
                 re = self.coordinator.data["raw"]["ResidualEnergy"]
                 if re > 0:
-                    re = re / 100
+                    if re > 50: # if openAPI scale is invalid (bug)
+                        re = re / 100
                 else:
                     re = 0
                 return re
