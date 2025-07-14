@@ -921,7 +921,7 @@ async def getReport(hass, allData, apiKey, devicesn):
                         if dataItem != None:
                             cumulative_total = dataItem
                         else:
-                            _LOGGER.warning("Report month fetch, None received")
+                            _LOGGER.debug("Report month fetch, None received")
                         break
                     index += 1
                     # cumulative_total += dataItem
