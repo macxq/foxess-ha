@@ -88,7 +88,10 @@ CONF_EXTPV = "extendPV"
 CONF_XTZONE = "xtZone"
 CONF_GET_VARIABLES = "Restrict"
 CONF_V1_API = "Use_V1_Api"
+CONF_EVO = "Evo"
 RETRY_NEXT_SLOT = -1
+RETRY_IN_5_MINS = 25
+DNS_ERROR = 101
 
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = False  # True
@@ -108,6 +111,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_XTZONE): cv.boolean,
         vol.Optional(CONF_GET_VARIABLES): cv.boolean,
         vol.Optional(CONF_V1_API): cv.boolean,
+        vol.Optional(CONF_EVO): cv.boolean,
     }
 )
 
@@ -116,7 +120,8 @@ token = None
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api
+    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo
+    Evo = False
     name = config.get(CONF_NAME)
     deviceID = config.get(CONF_DEVICEID)
     devicesn = config.get(CONF_DEVICESN)
@@ -125,6 +130,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     xtzone = config.get(CONF_XTZONE)
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     V1_Api = config.get(CONF_V1_API)
+    Evo = config.get(CONF_EVO)
     _LOGGER.debug("API Key: %s", apiKey)
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
@@ -132,6 +138,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug("Cross Time Zone: %s", xtzone)
     _LOGGER.debug("Extended PV: %s", ExtPV)
     _LOGGER.debug("V1 Api Calls: %s", V1_Api)
+    _LOGGER.debug("EVO: %s", Evo)
     if V1_Api is not True:
         V1_Api = False
     if ExtPV is not True:
@@ -165,7 +172,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         global token, timeslice, LastHour
         hournow = datetime.now().strftime("%H")  # update hour now
         _LOGGER.debug("Time now: %s, last %s", hournow, LastHour)
-        tslice = timeslice[devicesn] + 1  # increment current device time slice
+        tslice = timeslice[devicesn] + 1 # increment current device time slice
         timeslice[devicesn] = tslice
         if tslice % 5 == 0:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
@@ -173,7 +180,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             geterror = False
             if tslice % 15 == 0:
                 # get device detail at startup, then every 15 minutes to save api calls
-                geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
+                if Evo:
+                    # Evo not currently in device detail, use list and fill partial blanks
+                    geterror = await getOADeviceList(hass, allData, devicesn, apiKey)
+                else:
+                    geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
                 await asyncio.sleep(1)  # OpenAPI demand
             if not geterror:
                 if allData["addressbook"]["status"] is not None:
@@ -199,64 +210,60 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                                 if tslice == 0:
                                     # get daily generation at startup, then every 60 minutes
                                     await asyncio.sleep(1)  # OpenAPI demand
-                                    geterror = await getReportDailyGeneration(
-                                        hass, allData, apiKey, devicesn
-                                    )
+                                    geterror = await getReportDailyGeneration(hass, allData, apiKey, devicesn)
                                     if geterror:
                                         _LOGGER.debug("getReportDailyGeneration False")
                             else:
                                 _LOGGER.debug("getReport False")
+                            if geterror:
+                                geterror = False
+                                allData["online"] = False
+                                tslice = RETRY_IN_5_MINS  # retry in 5 minutes
                     else:
-                        _LOGGER.debug("getRaw False")
+                        _LOGGER.debug("get variables failed")
                         if statetest == 2:
                             # The inverter is in alarm, don't check every minute
                             _LOGGER.debug(
                                 "Inverter in alarm, slowing retry response for SN: %s",
                                 devicesn,
                             )
+                            allData["online"] = False
+                            tslice = RETRY_IN_5_MINS  # retry in 5 minutes
                         else:
-                            # The get variables api call failed, leave it 5 minutes
-                            _LOGGER.debug(
-                                "Failed to get device variables, slowing retry response for SN: %s",
-                                devicesn,
-                            )
-                        allData["online"] = False
+                            if geterror==DNS_ERROR:
+                                _LOGGER.warning("Fox Cloud - DNS fail, retry in 1 minute")
+                                # retry in 1 minute
+                                if tslice != 0:
+                                    tslice = (tslice-1)
+                                else:
+                                    tslice = RETRY_NEXT_SLOT
+                            else:
+                                # The get variables api call failed, leave it 5 minutes
+                                _LOGGER.debug("slowing retry response for SN: %s", devicesn)
+                                allData["online"] = False
+                                tslice = RETRY_IN_5_MINS  # retry in 5 minutes
                         geterror = False
-                        tslice = 25  # forces a retry on device detail in 5 minutes
                 else:
                     if statetest == 3:
                         # The inverter is off-line, no raw data polling, don't update entities
                         # retry device detail call every 5 minutes until it comes back on-line
                         allData["online"] = False
-                        tslice = 25  # forces a retry on device detail in 5 minutes
-                        _LOGGER.debug(
-                            "Inverter off-line set online flag false for SN: %s",
-                            devicesn,
-                        )
+                        tslice = RETRY_IN_5_MINS  # retry in 5 minutes
+                        _LOGGER.debug("Inverter off-line for SN: %s", devicesn)
 
                 if not allData["online"]:
                     if not geterror:
-                        _LOGGER.warning(
-                            "%s Inverter is off-line, waiting, will retry in 5 minutes",
-                            name,
-                        )
+                        _LOGGER.warning("%s Inverter is off-line, waiting to retry", name)
                     else:
-                        _LOGGER.warning(
-                            "%s has Cloud timeout, connection will be retried in 1 minute",
-                            name,
-                        )
+                        _LOGGER.warning("%s Cloud timeout, retry in 1 minute", name)
             else:
-                _LOGGER.warning(
-                    "%s has Cloud timeout fetching Device Detail, will retry in 1 minute.",
-                    name,
-                )
+                _LOGGER.warning("%s Cloud timeout on Device Detail, retry in 1 minute.", name)
 
             if geterror is not False:
                 allData["online"] = False
                 if tslice != 0:
-                    tslice = (
-                        tslice - 1
-                    )  # failed to get specific detail so retry slot in 1 minute
+                    tslice = tslice-1
+                    # failed to get specific detail so retry slot in 1 minute
                 else:
                     tslice = RETRY_NEXT_SLOT  # failed to get full data, try again in 1 minute
 
@@ -749,7 +756,7 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
     path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_DETAIL
-    _LOGGER.debug("OADevice Detail fetch %s %s", path, devicesn)
+    _LOGGER.debug("OADevice Detail fetch %s%s", path, devicesn)
     timestamp = round(time.time() * 1000)
 
     restOADeviceDetail = RestData(
@@ -793,6 +800,72 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
             return False
         else:
             _LOGGER.error("OA Device Detail Bad Response: %s", response)
+            return True
+
+
+async def getOADeviceList(hass, allData, devicesn, apiKey):
+    await waitforAPI()
+
+    path = "/op/v0/device/list"
+    headerData = GetAuth().get_signature(token=apiKey, path=path)
+
+    path = _ENDPOINT_OA_DOMAIN + "/op/v0/device/list"
+    _LOGGER.debug("OADevice List fetch %s%s", path, devicesn)
+    timestamp = round(time.time() * 1000)
+
+    listData = (
+        '{ "currentPage": 1, "pageSize": 10}'
+    )
+
+    restOADeviceList = RestData(
+        hass,
+        METHOD_POST,
+        path,
+        DEFAULT_ENCODING,
+        None,
+        headerData,
+        None,
+        listData,
+        DEFAULT_VERIFY_SSL,
+        SSLCipherList.PYTHON_DEFAULT,
+        DEFAULT_TIMEOUT,
+    )
+    await restOADeviceList.async_update()
+
+    if restOADeviceList.data is None or restOADeviceList.data == "":
+        _LOGGER.debug("Unable to get OA Device List from FoxESS Cloud")
+        return True
+    else:
+        response = json.loads(restOADeviceList.data)
+        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
+            ResponseTime = round(time.time() * 1000) - timestamp
+            if ResponseTime > 0:
+                allData["raw"]["ResponseTime"] = ResponseTime
+            else:
+                allData["raw"]["ResponseTime"] = 0
+            _LOGGER.debug("OA Device List Good Response: %s", response["result"])
+            result = json.loads(restOADeviceList.data)["result"]["data"]
+            for item in result:
+                variableName = item["stationName"]
+                _LOGGER.debug("OA Device List item: %s", item)
+                break
+            allData["addressbook"] = item
+            plantName = item["stationName"]
+            allData["addressbook"]["plantName"] = plantName
+            allData["addressbook"]["masterVersion"] = 'not provided'
+            allData["addressbook"]["managerVersion"] = 'not provided'
+            allData["addressbook"]["slaveVersion"] = 'not provided'
+            allData["addressbook"]["batteryList"] = 'not provided'
+            testBattery = item["hasBattery"]
+            if testBattery:
+                _LOGGER.debug("OA Device List System has Battery: %s", testBattery)
+            else:
+                _LOGGER.debug("OA Device List System has No Battery: %s", testBattery)
+                allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
+
+            return False
+        else:
+            _LOGGER.error("OA Device List Bad Response: %s", response)
             return True
 
 
@@ -1075,6 +1148,13 @@ async def getRaw(hass, allData, apiKey, devicesn):
     )
 
     await restOADeviceVariables.async_update()
+    if restOADeviceVariables.last_exception is not None:
+        lastex = str(restOADeviceVariables.last_exception)
+        _LOGGER.debug("Getvar exception: %s", lastex)
+        if "Timeout while contacting DNS servers" in lastex:
+            _LOGGER.debug("Getvar DNS exception: %s", lastex)
+            return DNS_ERROR
+            # [Timeout while contacting DNS servers]
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == "":
         _LOGGER.debug("Unable to get OA Variables from FoxESS Cloud")
@@ -1759,6 +1839,20 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
+        #if ATTR_DEVICE_SN not in self.coordinator.data["addressbook"]:
+        #    return {
+        #        ATTR_DEVICE_SN: 'not provided',
+        #        ATTR_PLANTNAME: 'not provided',
+        #        ATTR_MODULESN: 'not provided',
+        #        ATTR_DEVICE_TYPE: 'not provided',
+        #        ATTR_MASTER: 'not provided',
+        #        ATTR_MANAGER: 'not provided',
+        #        ATTR_SLAVE: 'not provided',
+        #        ATTR_BATTERYLIST: 'not provided',
+        #        ATTR_LASTCLOUDSYNC: datetime.now(),
+        #    }
+        #    allData["addressbook"][ATTR_DEVICE_SN] = "not provided"
+            
         if "status" not in self.coordinator.data["addressbook"]:
             _LOGGER.debug("addressbook status attributes None")
             return None
