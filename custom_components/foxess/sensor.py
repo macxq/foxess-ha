@@ -1838,21 +1838,7 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
         return None
 
     @property
-    def extra_state_attributes(self):
-        #if ATTR_DEVICE_SN not in self.coordinator.data["addressbook"]:
-        #    return {
-        #        ATTR_DEVICE_SN: 'not provided',
-        #        ATTR_PLANTNAME: 'not provided',
-        #        ATTR_MODULESN: 'not provided',
-        #        ATTR_DEVICE_TYPE: 'not provided',
-        #        ATTR_MASTER: 'not provided',
-        #        ATTR_MANAGER: 'not provided',
-        #        ATTR_SLAVE: 'not provided',
-        #        ATTR_BATTERYLIST: 'not provided',
-        #        ATTR_LASTCLOUDSYNC: datetime.now(),
-        #    }
-        #    allData["addressbook"][ATTR_DEVICE_SN] = "not provided"
-            
+    def extra_state_attributes(self):           
         if "status" not in self.coordinator.data["addressbook"]:
             _LOGGER.debug("addressbook status attributes None")
             return None
