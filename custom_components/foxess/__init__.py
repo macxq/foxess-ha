@@ -1,1 +1,1 @@
-"""The Foxess cloud integration."""
+"""The Foxess cloud integration with reduced api calls."""

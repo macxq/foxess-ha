@@ -1,11 +1,11 @@
 {
   "domain": "foxess",
-  "name": "HA & FoxESSCloud integration",
-  "codeowners": ["@macxq","@r-amado","@fozzieuk"],
+  "name": "HA & FoxESSCloud integration - Reduced API calls",
+  "codeowners": ["@francoisfernando"],
   "dependencies": ["rest"],
-  "documentation": "https://github.com/macxq/foxess-ha",
+  "documentation": "https://github.com/francoisfernando/foxess-ha",
   "iot_class": "local_polling",
-  "issue_tracker":"https://github.com/macxq/foxess-ha/issues",
+  "issue_tracker":"https://github.com/francoisfernando/foxess-ha",
   "requirements": ["random_user_agent"],
-  "version": "v0.4"  
+  "version": "v0.5"  
 }

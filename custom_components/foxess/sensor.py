@@ -89,6 +89,7 @@ CONF_XTZONE = "xtZone"
 CONF_GET_VARIABLES = "Restrict"
 CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
+CONF_REDUCE_API_CALLS = "reduceAPICalls"
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 DNS_ERROR = 101
@@ -112,15 +113,40 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_GET_VARIABLES): cv.boolean,
         vol.Optional(CONF_V1_API): cv.boolean,
         vol.Optional(CONF_EVO): cv.boolean,
+        vol.Optional(CONF_REDUCE_API_CALLS, default=True): cv.boolean,
     }
 )
 
 token = None
 
 
+class ApiCallController:
+    def __init__(self, reduce_api_calls: bool = False):
+        self.reduce_api_calls = reduce_api_calls
+        self.api_call_count = 0
+
+    def should_do_main_poll(self, tslice: int) -> bool:
+        return tslice % 10 == 0 if self.reduce_api_calls else tslice % 5 == 0
+    
+    def should_get_device_detail(self, tslice: int) -> bool:
+        return tslice == 0 if self.reduce_api_calls else tslice % 15 == 0
+    
+    def should_get_battery_settings(self, tslice: int) -> bool:
+        return tslice == 0
+    
+    def should_get_daily_generation(self, tslice: int) -> bool:
+        return tslice == 0
+    
+    def should_get_monthly_report(self, tslice: int) -> bool:
+        return tslice == 0 if self.reduce_api_calls else tslice % 15 == 0
+    
+    def increment_api_call_count(self):
+        self.api_call_count += 1
+
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
-    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo
+    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo, callController
     Evo = False
     name = config.get(CONF_NAME)
     deviceID = config.get(CONF_DEVICEID)
@@ -131,6 +157,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     V1_Api = config.get(CONF_V1_API)
     Evo = config.get(CONF_EVO)
+    ReduceApiCalls = config.get(CONF_REDUCE_API_CALLS)
+    callController = ApiCallController(reduce_api_calls=ReduceApiCalls)
     _LOGGER.debug("API Key: %s", apiKey)
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
@@ -169,16 +197,16 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     async def async_update_data():
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
-        global token, timeslice, LastHour
+        global token, timeslice, LastHour, callController
         hournow = datetime.now().strftime("%H")  # update hour now
         _LOGGER.debug("Time now: %s, last %s", hournow, LastHour)
         tslice = timeslice[devicesn] + 1 # increment current device time slice
         timeslice[devicesn] = tslice
-        if tslice % 5 == 0:
+        if callController.should_do_main_poll(tslice):
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
             # try the openapi see if we get a response
             geterror = False
-            if tslice % 15 == 0:
+            if callController.should_get_device_detail(tslice):
                 # get device detail at startup, then every 15 minutes to save api calls
                 if Evo:
                     # Evo not currently in device detail, use list and fill partial blanks
@@ -196,18 +224,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 _LOGGER.debug(" Statetest %s", statetest)
                 if statetest in [1, 2]:
                     allData["online"] = True
-                    if tslice == 0:
+                    if callController.should_get_battery_settings(tslice):
                         # read in battery settings if fitted at startup, then every 60 mins
                         await getOABatterySettings(hass, allData, devicesn, apiKey)
                         await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(hass, allData, apiKey, devicesn)
                     if not geterror:
-                        if tslice % 15 == 0:  # do at startup and every 15 minutes
+                        if callController.should_get_monthly_report(tslice):  # do at startup and every 15 minutes
                             await asyncio.sleep(1)  # OpenAPI demand limit
                             geterror = await getReport(hass, allData, apiKey, devicesn)
                             if not geterror:
-                                if tslice == 0:
+                                if callController.should_get_daily_generation(tslice):
                                     # get daily generation at startup, then every 60 minutes
                                     await asyncio.sleep(1)  # OpenAPI demand
                                     geterror = await getReportDailyGeneration(hass, allData, apiKey, devicesn)
@@ -734,7 +762,7 @@ class GetAuth:
 
 
 async def waitforAPI():
-    global last_api
+    global last_api, callController
     # wait for openAPI, there is a minimum of 1 second allowed between OpenAPI query calls
     # check if last_api call was less than a second ago and if so delay the balance of 1 second
     now = time.time()
@@ -746,6 +774,9 @@ async def waitforAPI():
         _LOGGER.debug("API enforced delay, wait: %s", diff)
     now = time.time()
     last_api = now
+
+    callController.increment_api_call_count()
+
     return False
 
 
