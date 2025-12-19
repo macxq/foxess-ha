@@ -1,5 +1,5 @@
 {
-  "domain": "foxess_light",
+  "domain": "foxess",
   "name": "HA & FoxESSCloud integration - Reduced API calls",
   "codeowners": ["@francoisfernando"],
   "dependencies": ["rest"],
