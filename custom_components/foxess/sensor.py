@@ -57,7 +57,8 @@ _LOGGER = logging.getLogger(__name__)
 _ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
 _ENDPOINT_OA_REPORT = "/op/v0/device/report/query"
-_ENDPOINT_OA_DEVICE_DETAIL = "/op/v0/device/detail?sn="
+_ENDPOINT_OA_DEVICE_DETAIL = "/op/v0/device/detail"
+_ENDPOINT_OA_DEVICE_DETAIL_V1 = "/op/v1/device/detail"
 _ENDPOINT_OA_DEVICE_VARIABLES = "/op/v0/device/real/query"
 _ENDPOINT_OA_DEVICE_VARIABLES_V1 = "/op/v1/device/real/query"
 _ENDPOINT_OA_DAILY_GENERATION = "/op/v0/device/generation?sn="
@@ -136,21 +137,24 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug("Device ID: %s", deviceID)
     _LOGGER.debug("FoxESS Scan Interval: %s minutes", SCAN_MINUTES)
     _LOGGER.debug("Cross Time Zone: %s", xtzone)
+    _LOGGER.debug("Restrict Variables: %s", RestrictGetVar)
     _LOGGER.debug("Extended PV: %s", ExtPV)
-    _LOGGER.debug("V1 Api Calls: %s", V1_Api)
+    _LOGGER.debug("v1 Api Calls: %s", V1_Api)
     _LOGGER.debug("EVO: %s", Evo)
-    if V1_Api is not True:
-        V1_Api = False
+    if V1_Api is not False:
+        V1_Api = True
+        _LOGGER.debug("v1 Api Calls Enabled")
+    else:
+        _LOGGER.warning("v1 Api Calls Disabled, using v0")
     if ExtPV is not True:
         ExtPV = False
+        _LOGGER.debug("Extended PV Disabled")
     else:
-        ExtPV = True
         _LOGGER.warning("Extended PV 1-18 strings enabled")
-    _LOGGER.debug("Restrict Variables: %s", RestrictGetVar)
     if RestrictGetVar is not True:
         RestrictGetVar = False
+        _LOGGER.debug("Get Variables is full variable mode")
     else:
-        RestrictGetVar = True
         _LOGGER.warning("Get Variables is in restricted mode")
     timeslice = {}
     timeslice[devicesn] = RETRY_NEXT_SLOT
@@ -513,6 +517,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             FoxESSPVEnergyTotal(coordinator, name, deviceID),
             FoxESSResidualEnergy(coordinator, name, deviceID),
             FoxESSResponseTime(coordinator, name, deviceID),
+            FoxESSMaxBatChargeCurrent(coordinator, name, deviceID),
+            FoxESSMaxBatDischargeCurrent(coordinator, name, deviceID),
             FoxESSRunningState(
                 coordinator,
                 name,
@@ -752,10 +758,15 @@ async def waitforAPI():
 async def getOADeviceDetail(hass, allData, devicesn, apiKey):
     await waitforAPI()
 
-    path = "/op/v0/device/detail"
+    if V1_Api:
+        path = _ENDPOINT_OA_DEVICE_DETAIL_V1
+        _LOGGER.debug("Device Detail using V1 API")
+    else:
+        path = _ENDPOINT_OA_DEVICE_DETAIL
+
     headerData = GetAuth().get_signature(token=apiKey, path=path)
 
-    path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DEVICE_DETAIL
+    path = _ENDPOINT_OA_DOMAIN + path + "?sn="
     _LOGGER.debug("OADevice Detail fetch %s%s", path, devicesn)
     timestamp = round(time.time() * 1000)
 
@@ -1695,6 +1706,66 @@ class FoxESSEnergyBatCharge(CoordinatorEntity, SensorEntity):
             else:
                 energycharge = self.coordinator.data["report"]["chargeEnergyToTal"]
             return energycharge
+        return None
+
+class FoxESSMaxBatChargeCurrent(CoordinatorEntity, SensorEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Max Bat Charge Current")
+        self._attr_name = name + " - Max Bat Charge Current"
+        self._attr_unique_id = deviceID + "max-bat-charge-charge"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if "maxChargeCurrent" not in self.coordinator.data["raw"]:
+            _LOGGER.debug("report maxChargeCurrent None")
+        else:
+            if self.coordinator.data["raw"]["maxChargeCurrent"] == 0:
+                charge = 0
+            else:
+                charge = self.coordinator.data["raw"]["maxChargeCurrent"]
+            return charge
+        return None
+
+class FoxESSMaxBatDischargeCurrent(CoordinatorEntity, SensorEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
+
+    def __init__(self, coordinator, name, deviceID):
+        super().__init__(coordinator=coordinator)
+        _LOGGER.debug("Initiating Entity - Max Bat Discharge Current")
+        self._attr_name = name + " - Max Bat Discharge Current"
+        self._attr_unique_id = deviceID + "max-bat-discharge-charge"
+        self.status = namedtuple(
+            "status",
+            [
+                ATTR_DATE,
+                ATTR_TIME,
+            ],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if "maxDischargeCurrent" not in self.coordinator.data["raw"]:
+            _LOGGER.debug("report maxDischargeCurrent None")
+        else:
+            if self.coordinator.data["raw"]["maxDischargeCurrent"] == 0:
+                charge = 0
+            else:
+                charge = self.coordinator.data["raw"]["maxDischargeCurrent"]
+            return charge
         return None
 
 
