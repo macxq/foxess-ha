@@ -35,6 +35,7 @@ from homeassistant.const import (
     UnitOfReactivePower,
     PERCENTAGE,
 )
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -83,6 +84,7 @@ CONF_EVO = "Evo"
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 DNS_ERROR = 101
+_AUTH_ERRNO = {40256, 41808}  # Invalid/empty API key per FoxESS OpenAPI docs
 
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = False  # True
@@ -109,8 +111,23 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 token = None
 
 
+async def async_setup_entry(hass, config_entry, async_add_entities):
+    """Set up FoxESS sensors from a config entry."""
+    await _async_setup_foxess(
+        hass,
+        config_entry.data,
+        async_add_entities,
+        config_entry,
+    )
+
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
+    await _async_setup_foxess(hass, config, async_add_entities)
+
+
+async def _async_setup_foxess(hass, config, async_add_entities, config_entry=None):
+    """Shared setup logic for platform and config entry."""
     global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo
     Evo = False
     name = config.get(CONF_NAME)
@@ -179,6 +196,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     geterror = await getOADeviceList(hass, allData, devicesn, apiKey)
                 else:
                     geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
+                if isinstance(geterror, int) and geterror in _AUTH_ERRNO:
+                    if config_entry is not None:
+                        raise ConfigEntryAuthFailed(
+                            f"FoxESS API key rejected (errno {geterror})"
+                        )
+                    _LOGGER.error(
+                        "FoxESS API authentication failed (errno %s). "
+                        "Update your apiKey in configuration.yaml and restart.",
+                        geterror,
+                    )
+                    return allData
                 await asyncio.sleep(1)  # OpenAPI demand
             if not geterror:
                 if allData["addressbook"]["status"] is not None:
@@ -196,6 +224,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(hass, allData, apiKey, devicesn)
+                    if isinstance(geterror, int) and geterror in _AUTH_ERRNO:
+                        if config_entry is not None:
+                            raise ConfigEntryAuthFailed(
+                                f"FoxESS API key rejected (errno {geterror})"
+                            )
+                        _LOGGER.error(
+                            "FoxESS API authentication failed (errno %s). "
+                            "Update your apiKey in configuration.yaml and restart.",
+                            geterror,
+                        )
+                        return allData
                     if not geterror:
                         if tslice % 15 == 0:  # do at startup and every 15 minutes
                             await asyncio.sleep(1)  # OpenAPI demand limit
@@ -278,11 +317,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
-        # Name of the data. For logging purposes.
         name=DEFAULT_NAME,
         update_method=async_update_data,
-        # Polling interval. Will only be polled if there are subscribers.
         update_interval=SCAN_INTERVAL,
+        config_entry=config_entry,
     )
 
     await coordinator.async_refresh()
@@ -801,7 +839,7 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
             return False
         else:
             _LOGGER.error("OA Device Detail Bad Response: %s", response)
-            return True
+            return response["errno"]
 
 
 async def getOADeviceList(hass, allData, devicesn, apiKey):
@@ -1101,17 +1139,17 @@ async def getRaw(hass, allData, apiKey, devicesn):
 
     # build the devicesn string
     if V1_Api:
-        dsn = '{"sns":["' + devicesn + '"] }' 
+        dsn = '{"sns":["' + devicesn + '"] }'
     else:
-        dsn = '{"sn":"' + devicesn + '" }' 
+        dsn = '{"sn":"' + devicesn + '" }'
 
     if RestrictGetVar:
         _LOGGER.debug("Getting Device Variable in restricted mode")
         # build the devicesn string
         if V1_Api:
-            dsn = '{"sns":["' + devicesn + '"] ' 
+            dsn = '{"sns":["' + devicesn + '"] '
         else:
-            dsn = '{"sn":"' + devicesn + '"' 
+            dsn = '{"sn":"' + devicesn + '"'
 
         rawData = (
             dsn + ',"variables":["ambientTemperation", "batChargePower", "batCurrent", "batCurrent_1", "batCurrent_2", "batDischargePower", "batTemperature", "batTemperature_1", "batTemperature_2", "batVolt", "batVolt_1", "batVolt_2", "boostTemperation", "chargeTemperature", "dspTemperature", "epsCurrentR", "epsCurrentS", "epsCurrentT", "epsPower", "epsPowerR", "epsPowerS", "epsPowerT", "epsVoltR", "epsVoltS", "epsVoltT", "feedinPower", "generationPower", "gridConsumptionPower", "input", "invBatCurrent", "invBatPower", "invBatVolt", "invTemperation", "loadsPower", "loadsPowerR", "loadsPowerS", "loadsPowerT", "meterPower", "meterPower2", "meterPowerR", "meterPowerS", "meterPowerT", "PowerFactor", "pv1Current", "pv1Power", "pv1Volt", "pv2Current", "pv2Power", "pv2Volt", "pv3Current", "pv3Power", "pv3Volt", "pv4Current", "pv4Power", "pv4Volt", "pvPower", "RCurrent", "ReactivePower", "RFreq", "RPower", "RVolt", "SCurrent", "SFreq", "SoC", "SPower", "SVolt", "TCurrent", "TFreq", "TPower", "TVolt", "SoC_1", "Soc_2", "ResidualEnergy", "energyThroughput", "runningState", "currentFaultCount"] }'
@@ -1317,7 +1355,7 @@ async def getRaw(hass, allData, apiKey, devicesn):
             return False
         else:
             _LOGGER.debug("OA Device Variables Bad Response: %s", response)
-            return True
+            return response["errno"]
 
 
 class FoxESSPowerString(CoordinatorEntity, SensorEntity):
@@ -1899,7 +1937,7 @@ class FoxESSInverter(CoordinatorEntity, SensorEntity):
         return None
 
     @property
-    def extra_state_attributes(self):           
+    def extra_state_attributes(self):
         if "status" not in self.coordinator.data["addressbook"]:
             _LOGGER.debug("addressbook status attributes None")
             return None

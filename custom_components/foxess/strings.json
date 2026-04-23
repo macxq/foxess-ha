@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "FoxESS Cloud",
+        "description": "Enter your FoxESS OpenAPI key to fetch your devices",
+        "data": {
+          "apiKey": "API Key"
+        }
+      },
+      "device": {
+        "title": "Select Device",
+        "description": "Select your FoxESS device. The device type is shown after the serial number.",
+        "data": {
+          "deviceSN": "Device",
+          "name": "Name"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate FoxESS",
+        "description": "Your FoxESS API key for device {device_sn} is no longer valid. Enter a new API key.",
+        "data": {
+          "apiKey": "API Key"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Unable to connect to FoxESS Cloud",
+      "invalid_auth": "Invalid API key",
+      "no_devices": "No devices found in your FoxESS account"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  }
+}
