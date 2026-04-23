@@ -27,6 +27,7 @@ DOMAIN = "foxess"
 CONF_API_KEY = "apiKey"
 CONF_DEVICE_SN = "deviceSN"
 CONF_DEVICE_ID = "deviceID"
+CONF_EXTPV = "extendPV"
 DEFAULT_NAME = "FoxESS"
 
 _DEVICE_LIST_ENDPOINT = "https://www.foxesscloud.com/op/v0/device/list"
@@ -145,6 +146,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_SN: device_sn,
                     CONF_DEVICE_ID: device_sn,
                     CONF_NAME: name,
+                    CONF_EXTPV: user_input.get(CONF_EXTPV, False),
                 },
             )
 
@@ -169,6 +171,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+                    vol.Optional(CONF_EXTPV, default=False): bool,
                 }
             ),
         )
