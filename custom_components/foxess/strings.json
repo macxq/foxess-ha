@@ -13,7 +13,11 @@
         "description": "Select your FoxESS device. The device type is shown after the serial number.",
         "data": {
           "deviceSN": "Device",
-          "name": "Name"
+          "name": "Name",
+          "extendPV": "Extended PV strings (PV7–18)"
+        },
+        "data_description": {
+          "extendPV": "Enable for Fox R series inverters or any inverter with more than 6 PV strings. Reads voltage, current, and power for PV strings 7–18."
         }
       },
       "reauth_confirm": {
