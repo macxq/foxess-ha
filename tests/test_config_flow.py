@@ -6,12 +6,12 @@ from aiohttp import ClientError
 from conftest import DOMAIN, MOCK_CONFIG
 from custom_components.foxess.config_flow import _fetch_device_list
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.config_entries import SOURCE_USER
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from tests.common import MockConfigEntry
 
 MOCK_DEVICES = [
     {
@@ -153,6 +153,7 @@ async def test_create_entry(
         "deviceSN": STEP2_INPUT["deviceSN"],
         "deviceID": STEP2_INPUT["deviceSN"],
         CONF_NAME: STEP2_INPUT[CONF_NAME],
+        "extendPV": False,
     }
     assert result["result"].unique_id == STEP2_INPUT["deviceSN"]
     mock_setup_entry.assert_called_once()
