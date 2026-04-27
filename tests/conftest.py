@@ -1,18 +1,15 @@
 """FoxESS tests configuration."""
 
 from collections.abc import Generator
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import AsyncMock, patch
-
-# Make `custom_components` importable when pytest runs from the repo root.
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import pytest
 
 from homeassistant.core import HomeAssistant
 
-pytest_plugins = ["tests.conftest"]
+sys.path.insert(0, str(Path(__file__).parent))
 
 DOMAIN = "foxess"
 
