@@ -134,21 +134,30 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         assert self._api_key is not None
         assert self._devices is not None
 
+        errors: dict[str, str] = {}
+
         if user_input is not None:
             device_sn = user_input[CONF_DEVICE_SN]
             name = user_input.get(CONF_NAME, DEFAULT_NAME)
             await self.async_set_unique_id(device_sn)
             self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title=device_sn,
-                data={
-                    CONF_API_KEY: self._api_key,
-                    CONF_DEVICE_SN: device_sn,
-                    CONF_DEVICE_ID: device_sn,
-                    CONF_NAME: name,
-                    CONF_EXTPV: user_input.get(CONF_EXTPV, False),
-                },
-            )
+            existing_names = {
+                entry.data.get(CONF_NAME)
+                for entry in self.hass.config_entries.async_entries(DOMAIN)
+            }
+            if name in existing_names:
+                errors[CONF_NAME] = "name_already_in_use"
+            else:
+                return self.async_create_entry(
+                    title=device_sn,
+                    data={
+                        CONF_API_KEY: self._api_key,
+                        CONF_DEVICE_SN: device_sn,
+                        CONF_DEVICE_ID: device_sn,
+                        CONF_NAME: name,
+                        CONF_EXTPV: user_input.get(CONF_EXTPV, False),
+                    },
+                )
 
         options = [
             SelectOptionDict(
@@ -174,6 +183,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_EXTPV, default=False): bool,
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_reauth(
