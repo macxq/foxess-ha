@@ -2082,6 +2082,7 @@ class FoxESSSolarPower(CoordinatorEntity, SensorEntity):
 
 
 class FoxESSBatSoC(CoordinatorEntity, SensorEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = "%"
 
@@ -2178,6 +2179,7 @@ class FoxESSBatMinSoConGrid(CoordinatorEntity, SensorEntity):
 
 
 class FoxESSTemp(CoordinatorEntity, SensorEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
