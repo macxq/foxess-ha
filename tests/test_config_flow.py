@@ -16,8 +16,7 @@ from homeassistant.data_entry_flow import FlowResultType
 MOCK_DEVICES = [
     {
         "deviceSN": "FAKE_DEVICE_SN",
-        "deviceType": "H3-Pro-3G",
-        "productType": "H3",
+        "deviceType": "H1-5.0-E",
         "status": 1,
     }
 ]
@@ -239,6 +238,53 @@ async def test_duplicate_device_aborts(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+MOCK_DEVICES_2 = [
+    {
+        "deviceSN": "SECOND_DEVICE_SN",
+        "deviceType": "H1-5.0-E",
+        "status": 1,
+    }
+]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_duplicate_name_rejected(
+    hass: HomeAssistant,
+    mock_setup_entry: AsyncMock,
+) -> None:
+    """Configuring a second device with the same name re-shows step 2 with an error."""
+    # First successful setup using the default name
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], STEP2_INPUT
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    # Second attempt with a different device but the same name
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with _patch_fetch_device_list((MOCK_DEVICES_2, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"deviceSN": "SECOND_DEVICE_SN", CONF_NAME: STEP2_INPUT[CONF_NAME]},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    assert result["errors"] == {CONF_NAME: "name_already_in_use"}
 
 
 # ---------------------------------------------------------------------------
