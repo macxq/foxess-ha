@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from aiohttp import ClientError
 from conftest import DOMAIN, MOCK_CONFIG
-from custom_components.foxess.config_flow import _fetch_device_list
+from custom_components.foxess.config_flow import CONF_DEVICE_SN, _fetch_device_list
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -21,6 +21,11 @@ MOCK_DEVICES = [
     }
 ]
 
+MOCK_TWO_DEVICES = [
+    *MOCK_DEVICES,
+    {"deviceSN": "SECOND_DEVICE_SN", "deviceType": "H1-5.0-E", "status": 1},
+]
+
 STEP1_INPUT = {"apiKey": "test-api-key"}
 
 STEP2_INPUT = {
@@ -34,6 +39,14 @@ def _patch_fetch_device_list(return_value: tuple) -> object:
         "custom_components.foxess.config_flow._fetch_device_list",
         return_value=return_value,
     )
+
+
+def _get_suggested(result: dict, key: str) -> object:
+    """Return the suggested_value for a schema field from a form result."""
+    for k in result["data_schema"].schema:
+        if k == key and hasattr(k, "description") and k.description:
+            return k.description.get("suggested_value")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +81,7 @@ async def test_step1_invalid_auth(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": "invalid_auth"}
+    assert _get_suggested(result, "apiKey") == STEP1_INPUT["apiKey"]
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -85,6 +99,7 @@ async def test_step1_cannot_connect(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": "cannot_connect"}
+    assert _get_suggested(result, "apiKey") == STEP1_INPUT["apiKey"]
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -102,6 +117,7 @@ async def test_step1_no_devices(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": "no_devices"}
+    assert _get_suggested(result, "apiKey") == STEP1_INPUT["apiKey"]
 
 
 # ---------------------------------------------------------------------------
@@ -182,34 +198,13 @@ async def test_create_entry_default_name(
     assert result["data"][CONF_NAME] == "FoxESS"
 
 
-@pytest.mark.usefixtures("enable_custom_integrations")
-async def test_device_id_set_to_device_sn(
-    hass: HomeAssistant, mock_setup_entry: AsyncMock
-) -> None:
-    """The deviceID is automatically set equal to deviceSN in the config entry."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}
-    )
-
-    with _patch_fetch_device_list((MOCK_DEVICES, None)):
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], STEP1_INPUT
-        )
-
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], STEP2_INPUT
-    )
-    await hass.async_block_till_done()
-
-    assert result["data"]["deviceID"] == result["data"]["deviceSN"]
-
 
 @pytest.mark.usefixtures("enable_custom_integrations")
-async def test_duplicate_device_aborts(
+async def test_duplicate_device_shows_error(
     hass: HomeAssistant,
     mock_setup_entry: AsyncMock,
 ) -> None:
-    """Configuring the same deviceSN a second time aborts with already_configured."""
+    """Configuring the same deviceSN a second time re-shows step 2 with already_configured."""
     # First successful setup
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
@@ -224,29 +219,24 @@ async def test_duplicate_device_aborts(
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
-    # Second attempt with same device
+    # Second attempt: two devices in list, select the already-configured first device with a new name
+    duplicate_input = {"deviceSN": "FAKE_DEVICE_SN", CONF_NAME: "Other Name"}
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
     )
-    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+    with _patch_fetch_device_list((MOCK_TWO_DEVICES, None)):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], STEP1_INPUT
         )
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], STEP2_INPUT
+        result["flow_id"], duplicate_input
     )
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
-
-
-MOCK_DEVICES_2 = [
-    {
-        "deviceSN": "SECOND_DEVICE_SN",
-        "deviceType": "H1-5.0-E",
-        "status": 1,
-    }
-]
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    assert result["errors"] == {CONF_DEVICE_SN: "already_configured"}
+    assert _get_suggested(result, CONF_DEVICE_SN) == duplicate_input["deviceSN"]
+    assert _get_suggested(result, CONF_NAME) == duplicate_input[CONF_NAME]
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -269,22 +259,24 @@ async def test_duplicate_name_rejected(
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
-    # Second attempt with a different device but the same name
+    # Second attempt: two devices in list, select the SECOND device (not default) with the same name
+    duplicate_input = {"deviceSN": "SECOND_DEVICE_SN", CONF_NAME: STEP2_INPUT[CONF_NAME]}
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
     )
-    with _patch_fetch_device_list((MOCK_DEVICES_2, None)):
+    with _patch_fetch_device_list((MOCK_TWO_DEVICES, None)):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], STEP1_INPUT
         )
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {"deviceSN": "SECOND_DEVICE_SN", CONF_NAME: STEP2_INPUT[CONF_NAME]},
+        result["flow_id"], duplicate_input
     )
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "device"
     assert result["errors"] == {CONF_NAME: "name_already_in_use"}
+    assert _get_suggested(result, CONF_DEVICE_SN) == duplicate_input["deviceSN"]
+    assert _get_suggested(result, CONF_NAME) == duplicate_input[CONF_NAME]
 
 
 # ---------------------------------------------------------------------------
