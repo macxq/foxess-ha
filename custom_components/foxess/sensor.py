@@ -4,6 +4,7 @@ from collections import namedtuple
 from datetime import timedelta
 from datetime import datetime
 from dateutil import parser
+import enum
 import time
 import logging
 import json
@@ -83,8 +84,21 @@ CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
-DNS_ERROR = 101
 _AUTH_ERRNO = {40256, 41808}  # Invalid/empty API key per FoxESS OpenAPI docs
+
+
+class FetchResult(enum.Enum):
+    """Result of a FoxESS Cloud API fetch call."""
+
+    OK = "ok"
+    ERROR = "error"
+    AUTH_FAILED = "auth_failed"
+    DNS_TIMEOUT = "dns_timeout"
+
+    def __bool__(self) -> bool:
+        """Return False for OK so callers can use `if not result:` for success."""
+        return self is not FetchResult.OK
+
 
 DEFAULT_NAME = "FoxESS"
 DEFAULT_VERIFY_SSL = False  # True
@@ -188,7 +202,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         if tslice % 5 == 0:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
             # try the openapi see if we get a response
-            geterror = False
+            geterror = FetchResult.OK
             if tslice % 15 == 0:
                 # get device detail at startup, then every 15 minutes to save api calls
                 if Evo:
@@ -196,15 +210,12 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                     geterror = await getOADeviceList(hass, allData, devicesn, apiKey)
                 else:
                     geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
-                if isinstance(geterror, int) and geterror in _AUTH_ERRNO:
+                if geterror is FetchResult.AUTH_FAILED:
                     if config_entry is not None:
-                        raise ConfigEntryAuthFailed(
-                            f"FoxESS API key rejected (errno {geterror})"
-                        )
+                        raise ConfigEntryAuthFailed("FoxESS API key rejected")
                     _LOGGER.error(
-                        "FoxESS API authentication failed (errno %s). "
-                        "Update your apiKey in configuration.yaml and restart.",
-                        geterror,
+                        "FoxESS API authentication failed. "
+                        "Update your apiKey in configuration.yaml and restart."
                     )
                     return allData
                 await asyncio.sleep(1)  # OpenAPI demand
@@ -224,15 +235,12 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                         await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(hass, allData, apiKey, devicesn)
-                    if isinstance(geterror, int) and geterror in _AUTH_ERRNO:
+                    if geterror is FetchResult.AUTH_FAILED:
                         if config_entry is not None:
-                            raise ConfigEntryAuthFailed(
-                                f"FoxESS API key rejected (errno {geterror})"
-                            )
+                            raise ConfigEntryAuthFailed("FoxESS API key rejected")
                         _LOGGER.error(
-                            "FoxESS API authentication failed (errno %s). "
-                            "Update your apiKey in configuration.yaml and restart.",
-                            geterror,
+                            "FoxESS API authentication failed. "
+                            "Update your apiKey in configuration.yaml and restart."
                         )
                         return allData
                     if not geterror:
@@ -249,7 +257,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                             else:
                                 _LOGGER.debug("getReport False")
                             if geterror:
-                                geterror = False
+                                geterror = FetchResult.OK
                                 allData["online"] = False
                                 tslice = RETRY_IN_5_MINS  # retry in 5 minutes
                     else:
@@ -263,7 +271,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                             allData["online"] = False
                             tslice = RETRY_IN_5_MINS  # retry in 5 minutes
                         else:
-                            if geterror==DNS_ERROR:
+                            if geterror is FetchResult.DNS_TIMEOUT:
                                 _LOGGER.warning("Fox Cloud - DNS fail, retry in 1 minute")
                                 # retry in 1 minute
                                 if tslice != 0:
@@ -275,7 +283,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                                 _LOGGER.debug("slowing retry response for SN: %s", devicesn)
                                 allData["online"] = False
                                 tslice = RETRY_IN_5_MINS  # retry in 5 minutes
-                        geterror = False
+                        geterror = FetchResult.OK
                 else:
                     if statetest == 3:
                         # The inverter is off-line, no raw data polling, don't update entities
@@ -292,7 +300,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
             else:
                 _LOGGER.warning("%s Cloud timeout on Device Detail, retry in 1 minute.", name)
 
-            if geterror is not False:
+            if geterror is not FetchResult.OK:
                 allData["online"] = False
                 if tslice != 0:
                     tslice = tslice-1
@@ -815,7 +823,7 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
 
     if restOADeviceDetail.data is None or restOADeviceDetail.data == "":
         _LOGGER.debug("Unable to get OA Device Detail from FoxESS Cloud")
-        return True
+        return FetchResult.ERROR
     else:
         response = json.loads(restOADeviceDetail.data)
         if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
@@ -836,10 +844,10 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
             else:
                 _LOGGER.debug("OA Device Detail System has No Battery: %s", testBattery)
                 allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
-            return False
+            return FetchResult.OK
         else:
             _LOGGER.error("OA Device Detail Bad Response: %s", response)
-            return response["errno"]
+            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
 
 
 async def getOADeviceList(hass, allData, devicesn, apiKey):
@@ -873,7 +881,7 @@ async def getOADeviceList(hass, allData, devicesn, apiKey):
 
     if restOADeviceList.data is None or restOADeviceList.data == "":
         _LOGGER.debug("Unable to get OA Device List from FoxESS Cloud")
-        return True
+        return FetchResult.ERROR
     else:
         response = json.loads(restOADeviceList.data)
         if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
@@ -902,10 +910,10 @@ async def getOADeviceList(hass, allData, devicesn, apiKey):
                 _LOGGER.debug("OA Device List System has No Battery: %s", testBattery)
                 allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
 
-            return False
+            return FetchResult.OK
         else:
             _LOGGER.error("OA Device List Bad Response: %s", response)
-            return True
+            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
 
 
 async def getOABatterySettings(hass, allData, devicesn, apiKey):
@@ -940,7 +948,7 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
 
         if restOABatterySettings.data is None:
             _LOGGER.debug("Unable to get OA Battery Settings from FoxESS Cloud")
-            return True
+            return FetchResult.ERROR
         else:
             response = json.loads(restOABatterySettings.data)
             if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
@@ -957,15 +965,15 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
                     minSoc,
                     minSocOnGrid,
                 )
-                return False
+                return FetchResult.OK
             else:
                 _LOGGER.error("OA Battery Settings Bad Response: %s", response)
-                return True
+                return FetchResult.ERROR
     else:
         # device detail reports no battery fitted so reset these variables to show unknown
         allData["battery"]["minSoc"] = None
         allData["battery"]["minSocOnGrid"] = None
-        return False
+        return FetchResult.OK
 
 
 async def getReport(hass, allData, apiKey, devicesn):
@@ -1010,7 +1018,7 @@ async def getReport(hass, allData, apiKey, devicesn):
 
     if restOAReport.data is None or restOAReport.data == "":
         _LOGGER.debug("Unable to get OA Report from FoxESS Cloud")
-        return True
+        return FetchResult.ERROR
     else:
         # Openapi responded so process data
         response = json.loads(restOAReport.data)
@@ -1041,10 +1049,10 @@ async def getReport(hass, allData, apiKey, devicesn):
                 _LOGGER.debug(
                     "OA Report Variable: %s, Total: %s", variableName, cumulative_total
                 )
-            return False
+            return FetchResult.OK
         else:
             _LOGGER.debug("OA Report Bad Response: %s %s ", response, restOAReport.data)
-            return True
+            return FetchResult.ERROR
 
 
 async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
@@ -1078,7 +1086,7 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
 
     if restOAgen.data is None or restOAgen.data == "":
         _LOGGER.debug("Unable to get OA Daily Generation Report from FoxESS Cloud")
-        return True
+        return FetchResult.ERROR
     else:
         response = json.loads(restOAgen.data)
         if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
@@ -1122,14 +1130,14 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
                     "OA Daily Generation Report data: cumulative value %s ",
                     parsed["cumulative"],
                 )
-            return False
+            return FetchResult.OK
         else:
             _LOGGER.debug(
                 "OA Daily Generation Report Bad Response: %s %s ",
                 response,
                 restOAgen.data,
             )
-            return True
+            return FetchResult.ERROR
 
 
 async def getRaw(hass, allData, apiKey, devicesn):
@@ -1192,12 +1200,12 @@ async def getRaw(hass, allData, apiKey, devicesn):
         _LOGGER.debug("Getvar exception: %s", lastex)
         if "Timeout while contacting DNS servers" in lastex:
             _LOGGER.debug("Getvar DNS exception: %s", lastex)
-            return DNS_ERROR
+            return FetchResult.DNS_TIMEOUT
             # [Timeout while contacting DNS servers]
 
     if restOADeviceVariables.data is None or restOADeviceVariables.data == "":
         _LOGGER.debug("Unable to get OA Variables from FoxESS Cloud")
-        return True
+        return FetchResult.ERROR
     else:
         # Openapi responded correctly
         response = json.loads(restOADeviceVariables.data)
@@ -1352,10 +1360,10 @@ async def getRaw(hass, allData, apiKey, devicesn):
                                     hasBat,
                                 )
 
-            return False
+            return FetchResult.OK
         else:
             _LOGGER.debug("OA Device Variables Bad Response: %s", response)
-            return response["errno"]
+            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
 
 
 class FoxESSPowerString(CoordinatorEntity, SensorEntity):
