@@ -1,4 +1,5 @@
 """Config flow for FoxESS integration."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -52,9 +53,7 @@ def _build_headers(api_key: str, path: str) -> dict:
     }
 
 
-async def _fetch_device_list(
-    hass, api_key: str
-) -> tuple[list[dict], str | None]:
+async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None]:
     """Fetch the device list from FoxESS Cloud.
 
     Returns (devices, error_key). On success error_key is None and devices
@@ -105,9 +104,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         self._api_key: str | None = None
         self._devices: list[dict] | None = None
 
-    async def async_step_user(
-        self, user_input: dict | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Handle the initial step — collect API key and discover devices."""
         errors: dict[str, str] = {}
 
@@ -123,7 +120,10 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_API_KEY): str}),
+                user_input or {},
+            ),
             errors=errors,
         )
 
@@ -139,15 +139,15 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             device_sn = user_input[CONF_DEVICE_SN]
             name = user_input.get(CONF_NAME, DEFAULT_NAME)
-            await self.async_set_unique_id(device_sn)
-            self._abort_if_unique_id_configured()
-            existing_names = {
-                entry.data.get(CONF_NAME)
-                for entry in self.hass.config_entries.async_entries(DOMAIN)
-            }
-            if name in existing_names:
+
+            current_entries = self._async_current_entries()
+            if any(e.unique_id == device_sn for e in current_entries):
+                errors[CONF_DEVICE_SN] = "already_configured"
+            if any(e.data.get(CONF_NAME) == name for e in current_entries):
                 errors[CONF_NAME] = "name_already_in_use"
-            else:
+
+            if not errors:
+                await self.async_set_unique_id(device_sn)
                 return self.async_create_entry(
                     title=device_sn,
                     data={
@@ -162,26 +162,27 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         options = [
             SelectOptionDict(
                 value=d["deviceSN"],
-                label=(
-                    f"{d['deviceSN']} ({d.get('deviceType', '?')})"
-                ),
+                label=(f"{d['deviceSN']} ({d.get('deviceType', '?')})"),
             )
             for d in self._devices
         ]
 
         return self.async_show_form(
             step_id="device",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_DEVICE_SN): SelectSelector(
-                        SelectSelectorConfig(
-                            options=options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-                    vol.Optional(CONF_EXTPV, default=False): bool,
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_DEVICE_SN): SelectSelector(
+                            SelectSelectorConfig(
+                                options=options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                        vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+                        vol.Optional(CONF_EXTPV, default=False): bool,
+                    }
+                ),
+                user_input or {},
             ),
             errors=errors,
         )
