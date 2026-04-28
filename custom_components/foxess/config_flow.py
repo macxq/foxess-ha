@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import hashlib
 import logging
-import time
 from typing import Any
 
 from aiohttp import ClientError
@@ -21,6 +19,8 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
+from .sensor import GetAuth
+
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "foxess"
@@ -35,31 +35,13 @@ _DEVICE_LIST_ENDPOINT = "https://www.foxesscloud.com/op/v0/device/list"
 _DEVICE_LIST_PATH = "/op/v0/device/list"
 
 
-def _build_headers(api_key: str, path: str) -> dict:
-    timestamp = round(time.time() * 1000)
-    signature_text = rf"{path}\r\n{api_key}\r\n{timestamp}"
-    signature = hashlib.md5(signature_text.encode("UTF-8")).hexdigest()
-    return {
-        "token": api_key,
-        "lang": "en",
-        "timestamp": str(timestamp),
-        "Content-Type": "application/json",
-        "signature": signature,
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Connection": "close",
-    }
-
-
 async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None]:
     """Fetch the device list from FoxESS Cloud.
 
     Returns (devices, error_key). On success error_key is None and devices
     contains the list of device dicts from the API (deviceSN, deviceType, etc.).
     """
-    headers = _build_headers(api_key, _DEVICE_LIST_PATH)
+    headers = GetAuth().get_signature(token=api_key, path=_DEVICE_LIST_PATH)
     session = async_get_clientsession(hass, verify_ssl=False)
     try:
         # This assumes that the user has a maximum of 25 inverters.
