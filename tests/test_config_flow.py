@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiohttp import ClientError
 from conftest import DOMAIN, MOCK_CONFIG
 from custom_components.foxess.config_flow import CONF_DEVICESN, _fetch_device_list
+from custom_components.foxess.sensor import YAML_CONFIGS_KEY
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -277,6 +278,63 @@ async def test_duplicate_name_rejected(
     assert result["errors"] == {CONF_NAME: "name_already_in_use"}
     assert _get_suggested(result, CONF_DEVICESN) == duplicate_input["deviceSN"]
     assert _get_suggested(result, CONF_NAME) == duplicate_input[CONF_NAME]
+
+
+# ---------------------------------------------------------------------------
+# YAML conflict detection tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_yaml_device_sn_blocks_config_flow(
+    hass: HomeAssistant,
+    mock_setup_entry: AsyncMock,
+) -> None:
+    """A deviceSN already configured via YAML shows already_configured error."""
+    hass.data[YAML_CONFIGS_KEY] = {
+        "FAKE_DEVICE_SN": {"deviceID": "some-uuid", "name": "Other Name"},
+    }
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"deviceSN": "FAKE_DEVICE_SN", CONF_NAME: "My Name"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    assert result["errors"] == {CONF_DEVICESN: "yaml_device_already_configured"}
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_yaml_name_blocks_config_flow(
+    hass: HomeAssistant,
+    mock_setup_entry: AsyncMock,
+) -> None:
+    """A name already used by a YAML-configured device shows yaml_name_already_in_use."""
+    hass.data[YAML_CONFIGS_KEY] = {
+        "OTHER_DEVICE_SN": {"deviceID": "some-uuid", "name": "Taken Name"},
+    }
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"deviceSN": "FAKE_DEVICE_SN", CONF_NAME: "Taken Name"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    assert result["errors"] == {CONF_NAME: "yaml_name_already_in_use"}
 
 
 # ---------------------------------------------------------------------------

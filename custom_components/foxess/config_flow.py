@@ -26,6 +26,7 @@ from .sensor import (
     CONF_DEVICESN,
     CONF_EXTPV,
     DEFAULT_NAME,
+    YAML_CONFIGS_KEY,
     GetAuth,
 )
 
@@ -125,9 +126,16 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
             name = user_input.get(CONF_NAME, DEFAULT_NAME)
 
             current_entries = self._async_current_entries()
-            if any(e.unique_id == device_sn for e in current_entries):
+            yaml_configs = self.hass.data.get(YAML_CONFIGS_KEY, {})
+
+            if device_sn in yaml_configs:
+                errors[CONF_DEVICESN] = "yaml_device_already_configured"
+            elif any(e.unique_id == device_sn for e in current_entries):
                 errors[CONF_DEVICESN] = "already_configured"
-            if any(e.data.get(CONF_NAME) == name for e in current_entries):
+
+            if any(cfg.get(CONF_NAME) == name for cfg in yaml_configs.values()):
+                errors[CONF_NAME] = "yaml_name_already_in_use"
+            elif any(e.data.get(CONF_NAME) == name for e in current_entries):
                 errors[CONF_NAME] = "name_already_in_use"
 
             if not errors:

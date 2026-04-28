@@ -33,7 +33,9 @@
       "cannot_connect": "Unable to connect to FoxESS Cloud",
       "invalid_auth": "Invalid API key",
       "name_already_in_use": "A device with this name is already configured",
-      "no_devices": "No devices found in your FoxESS account"
+      "no_devices": "No devices found in your FoxESS account",
+      "yaml_device_already_configured": "This device is already configured in configuration.yaml. Remove it from YAML first.",
+      "yaml_name_already_in_use": "A device in configuration.yaml already uses this name."
     },
     "abort": {
       "already_configured": "Device is already configured",
