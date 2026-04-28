@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from aiohttp import ClientError
 from conftest import DOMAIN, MOCK_CONFIG
-from custom_components.foxess.config_flow import CONF_DEVICE_SN, _fetch_device_list
+from custom_components.foxess.config_flow import CONF_DEVICESN, _fetch_device_list
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -234,8 +234,8 @@ async def test_duplicate_device_shows_error(
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "device"
-    assert result["errors"] == {CONF_DEVICE_SN: "already_configured"}
-    assert _get_suggested(result, CONF_DEVICE_SN) == duplicate_input["deviceSN"]
+    assert result["errors"] == {CONF_DEVICESN: "already_configured"}
+    assert _get_suggested(result, CONF_DEVICESN) == duplicate_input["deviceSN"]
     assert _get_suggested(result, CONF_NAME) == duplicate_input[CONF_NAME]
 
 
@@ -275,7 +275,7 @@ async def test_duplicate_name_rejected(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "device"
     assert result["errors"] == {CONF_NAME: "name_already_in_use"}
-    assert _get_suggested(result, CONF_DEVICE_SN) == duplicate_input["deviceSN"]
+    assert _get_suggested(result, CONF_DEVICESN) == duplicate_input["deviceSN"]
     assert _get_suggested(result, CONF_NAME) == duplicate_input[CONF_NAME]
 
 
