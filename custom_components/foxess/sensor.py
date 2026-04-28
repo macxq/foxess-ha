@@ -86,6 +86,10 @@ RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 _AUTH_ERRNO = {40256, 41808}  # Invalid/empty API key per FoxESS OpenAPI docs
 
+# Key under hass.data where YAML-configured device info is stored so the
+# config flow can detect conflicts and preserve the original deviceID.
+YAML_CONFIGS_KEY = "foxess_yaml_configs"
+
 
 class FetchResult(enum.Enum):
     """Result of a FoxESS Cloud API fetch call."""
@@ -137,6 +141,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the FoxESS sensor."""
+    # Advertise YAML config so the config flow can detect conflicts and
+    # preserve the original deviceID (which may differ from deviceSN).
+    yaml_configs = hass.data.setdefault(YAML_CONFIGS_KEY, {})
+    yaml_configs[config[CONF_DEVICESN]] = {
+        CONF_DEVICEID: config.get(CONF_DEVICEID),
+        CONF_NAME: config.get(CONF_NAME, DEFAULT_NAME),
+    }
     await _async_setup_foxess(hass, config, async_add_entities)
 
 
