@@ -19,20 +19,22 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .sensor import GetAuth
+from .sensor import (
+    _ENDPOINT_OA_DOMAIN,
+    CONF_APIKEY,
+    CONF_DEVICEID,
+    CONF_DEVICESN,
+    CONF_EXTPV,
+    DEFAULT_NAME,
+    GetAuth,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "foxess"
 
-CONF_API_KEY = "apiKey"
-CONF_DEVICE_SN = "deviceSN"
-CONF_DEVICE_ID = "deviceID"
-CONF_EXTPV = "extendPV"
-DEFAULT_NAME = "FoxESS"
-
-_DEVICE_LIST_ENDPOINT = "https://www.foxesscloud.com/op/v0/device/list"
 _DEVICE_LIST_PATH = "/op/v0/device/list"
+_DEVICE_LIST_ENDPOINT = _ENDPOINT_OA_DOMAIN + _DEVICE_LIST_PATH
 
 
 async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None]:
@@ -91,7 +93,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            api_key = user_input[CONF_API_KEY]
+            api_key = user_input[CONF_APIKEY]
             devices, error = await _fetch_device_list(self.hass, api_key)
             if error:
                 errors["base"] = error
@@ -103,7 +105,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema({vol.Required(CONF_API_KEY): str}),
+                vol.Schema({vol.Required(CONF_APIKEY): str}),
                 user_input or {},
             ),
             errors=errors,
@@ -119,12 +121,12 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            device_sn = user_input[CONF_DEVICE_SN]
+            device_sn = user_input[CONF_DEVICESN]
             name = user_input.get(CONF_NAME, DEFAULT_NAME)
 
             current_entries = self._async_current_entries()
             if any(e.unique_id == device_sn for e in current_entries):
-                errors[CONF_DEVICE_SN] = "already_configured"
+                errors[CONF_DEVICESN] = "already_configured"
             if any(e.data.get(CONF_NAME) == name for e in current_entries):
                 errors[CONF_NAME] = "name_already_in_use"
 
@@ -133,9 +135,9 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=device_sn,
                     data={
-                        CONF_API_KEY: self._api_key,
-                        CONF_DEVICE_SN: device_sn,
-                        CONF_DEVICE_ID: device_sn,
+                        CONF_APIKEY: self._api_key,
+                        CONF_DEVICESN: device_sn,
+                        CONF_DEVICEID: device_sn,
                         CONF_NAME: name,
                         CONF_EXTPV: user_input.get(CONF_EXTPV, False),
                     },
@@ -154,7 +156,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(
                     {
-                        vol.Required(CONF_DEVICE_SN): SelectSelector(
+                        vol.Required(CONF_DEVICESN): SelectSelector(
                             SelectSelectorConfig(
                                 options=options,
                                 mode=SelectSelectorMode.DROPDOWN,
@@ -183,17 +185,17 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         reauth_entry = self._get_reauth_entry()
 
         if user_input is not None:
-            _, error = await _fetch_device_list(self.hass, user_input[CONF_API_KEY])
+            _, error = await _fetch_device_list(self.hass, user_input[CONF_APIKEY])
             if error in (None, "no_devices"):
                 return self.async_update_reload_and_abort(
                     reauth_entry,
-                    data_updates={CONF_API_KEY: user_input[CONF_API_KEY]},
+                    data_updates={CONF_APIKEY: user_input[CONF_APIKEY]},
                 )
             errors["base"] = error
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
-            description_placeholders={"device_sn": reauth_entry.data[CONF_DEVICE_SN]},
+            data_schema=vol.Schema({vol.Required(CONF_APIKEY): str}),
+            description_placeholders={"device_sn": reauth_entry.data[CONF_DEVICESN]},
             errors=errors,
         )
