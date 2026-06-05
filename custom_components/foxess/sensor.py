@@ -80,6 +80,7 @@ CONF_XTZONE = "xtZone"
 CONF_GET_VARIABLES = "Restrict"
 CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
+CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 DNS_ERROR = 101
@@ -103,6 +104,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_GET_VARIABLES): cv.boolean,
         vol.Optional(CONF_V1_API): cv.boolean,
         vol.Optional(CONF_EVO): cv.boolean,
+        vol.Optional(CONF_ENERGY_GENERATED_SANITY): cv.positive_float,
     }
 )
 
@@ -122,6 +124,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     V1_Api = config.get(CONF_V1_API)
     Evo = config.get(CONF_EVO)
+    energyGeneratedSanityCheck = config.get(CONF_ENERGY_GENERATED_SANITY)
     _LOGGER.debug("API Key: %s", apiKey)
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
@@ -131,6 +134,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     _LOGGER.debug("Extended PV: %s", ExtPV)
     _LOGGER.debug("v1 Api Calls: %s", V1_Api)
     _LOGGER.debug("EVO: %s", Evo)
+    _LOGGER.debug("Energy Sanity Check: %s", energyGeneratedSanityCheck)
     if V1_Api is not False:
         V1_Api = True
         _LOGGER.debug("v1 Api Calls Enabled")
@@ -482,6 +486,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 "Energy Generated",
                 "energy-generated",
                 "value",
+                max_value=energyGeneratedSanityCheck,
             ),
             FoxESSEnergyGenerated(
                 coordinator,
@@ -1536,11 +1541,12 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
-    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue):
+    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue, max_value=None):
         super().__init__(coordinator=coordinator)
         self._nameValue = nameValue
         self._uniqueValue = uniqueValue
         self._keyValue = keyValue
+        self._max_value = max_value
         _LOGGER.debug("Initiating Entity - %s", self._nameValue)
         self._attr_name = f"{name} - {self._nameValue}"
         self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
@@ -1554,6 +1560,7 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
+        _LOGGER.debug("Getting native_value for %s", self._nameValue)
         if self._keyValue not in self.coordinator.data["reportDailyGeneration"]:
             _LOGGER.debug("%s None", self._keyValue)
         else:
@@ -1567,6 +1574,12 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
                     energygenerated = round(energygenerated, 3)
                 else:
                     energygenerated = 0
+            if self._max_value is not None and energygenerated is not None and energygenerated > self._max_value:
+                _LOGGER.warning(
+                    "%s value %s exceeds sanity check threshold %s, ignoring",
+                    self._nameValue, energygenerated, self._max_value
+                )
+                return None
             return energygenerated
         return None
 
