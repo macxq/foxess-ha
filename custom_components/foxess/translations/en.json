@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "FoxESS Cloud",
+        "description": "Enter your FoxESS OpenAPI key to fetch your devices",
+        "data": {
+          "apiKey": "API Key"
+        }
+      },
+      "device": {
+        "title": "Select Device",
+        "description": "Select your FoxESS device. The device type is shown after the serial number.",
+        "data": {
+          "deviceSN": "Device",
+          "name": "Name",
+          "extendPV": "Extended PV strings (PV7–18)"
+        },
+        "data_description": {
+          "extendPV": "Enable for Fox R series inverters or any inverter with more than 6 PV strings. Reads voltage, current, and power for PV strings 7–18."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate FoxESS",
+        "description": "Your FoxESS API key for device {device_sn} is no longer valid. Enter a new API key.",
+        "data": {
+          "apiKey": "API Key"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Unable to connect to FoxESS Cloud",
+      "invalid_auth": "Invalid API key",
+      "name_already_in_use": "A device with this name is already configured",
+      "no_devices": "No devices found in your FoxESS account",
+      "yaml_device_already_configured": "This device is already configured in configuration.yaml. Remove it from YAML first.",
+      "yaml_name_already_in_use": "A device in configuration.yaml already uses this name."
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  }
+}
