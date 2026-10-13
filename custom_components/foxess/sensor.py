@@ -122,7 +122,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     V1_Api = config.get(CONF_V1_API)
     Evo = config.get(CONF_EVO)
-    _LOGGER.debug("API Key: %s", apiKey)
+    _LOGGER.debug("API Key: %s", f"...{apiKey[-4:]}" if apiKey else "(unset)")
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
     _LOGGER.debug("FoxESS Scan Interval: %s minutes", SCAN_MINUTES)
