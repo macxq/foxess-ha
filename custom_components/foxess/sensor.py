@@ -1563,7 +1563,7 @@ class FoxESSEnergyGenerated(CoordinatorEntity, SensorEntity):
                 energygenerated = self.coordinator.data["reportDailyGeneration"][
                     self._keyValue
                 ]
-                if energygenerated > 0:
+                if 0 < energygenerated < 1000:
                     energygenerated = round(energygenerated, 3)
                 else:
                     energygenerated = 0
