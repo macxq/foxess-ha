@@ -46,8 +46,9 @@
     "step": {
       "init": {
         "title": "FoxESS Options",
-        "description": "Configure settings for this FoxESS inverter.",
+        "description": "Configure settings for inverter {device_sn} ({name}).",
         "data": {
+          "deviceSN": "Assigned Inverter",
           "apiKey": "API Key",
           "extendPV": "Extended PV strings (PV7–18)",
           "Evo": "FoxESS EVO series mode",
@@ -55,6 +56,7 @@
           "Restrict": "Restrict API variables"
         },
         "data_description": {
+          "deviceSN": "The serial number of this inverter.",
           "extendPV": "Enable for Fox R series or inverters with more than 6 PV strings.",
           "Evo": "Enable if using a FoxESS EVO inverter where device details are incomplete.",
           "xtZone": "Enable if inverter timestamps use a different time zone than Home Assistant.",

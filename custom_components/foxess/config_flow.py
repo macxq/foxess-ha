@@ -15,10 +15,15 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    ConstantSelector,
+    ConstantSelectorConfig,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from .sensor import (
@@ -119,7 +124,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         return self.async_create_entry(
-            title=device_sn,
+            title=f"{import_data.get(CONF_NAME, DEFAULT_NAME)} ({device_sn})",
             data={
                 CONF_APIKEY: import_data[CONF_APIKEY],
                 CONF_DEVICESN: device_sn,
@@ -150,7 +155,13 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema({vol.Required(CONF_APIKEY): str}),
+                vol.Schema(
+                    {
+                        vol.Required(CONF_APIKEY): TextSelector(
+                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                        )
+                    }
+                ),
                 user_input or {},
             ),
             errors=errors,
@@ -185,7 +196,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 await self.async_set_unique_id(device_sn)
                 return self.async_create_entry(
-                    title=device_sn,
+                    title=f"{name} ({device_sn})",
                     data={
                         CONF_APIKEY: self._api_key,
                         CONF_DEVICESN: device_sn,
@@ -203,6 +214,10 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
             for d in self._devices
         ]
 
+        suggested_values = dict(user_input or {})
+        if CONF_DEVICESN not in suggested_values and self._devices and len(self._devices) == 1:
+            suggested_values[CONF_DEVICESN] = self._devices[0]["deviceSN"]
+
         return self.async_show_form(
             step_id="device",
             data_schema=self.add_suggested_values_to_schema(
@@ -218,7 +233,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         vol.Optional(CONF_EXTPV, default=False): bool,
                     }
                 ),
-                user_input or {},
+                suggested_values,
             ),
             errors=errors,
         )
@@ -247,7 +262,13 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_APIKEY): str}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_APIKEY): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    )
+                }
+            ),
             description_placeholders={"device_sn": reauth_entry.data[CONF_DEVICESN]},
             errors=errors,
         )
@@ -269,7 +290,9 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            new_api_key = user_input.get(CONF_APIKEY)
+            user_input_copy = dict(user_input)
+            user_input_copy.pop(CONF_DEVICESN, None)
+            new_api_key = user_input_copy.get(CONF_APIKEY)
             current_api_key = self.config_entry.options.get(
                 CONF_APIKEY, self.config_entry.data.get(CONF_APIKEY)
             )
@@ -279,21 +302,32 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                     errors["base"] = error
 
             if not errors:
-                return self.async_create_entry(title="", data=user_input)
+                return self.async_create_entry(title="", data=user_input_copy)
 
         current_options = self.config_entry.options
         current_data = self.config_entry.data
+        device_sn = current_data.get(CONF_DEVICESN, "")
+        name = current_data.get(CONF_NAME, DEFAULT_NAME)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_DEVICESN,
+                        default=device_sn,
+                    ): ConstantSelector(
+                        ConstantSelectorConfig(
+                            value=device_sn,
+                            label=f"{name} ({device_sn})",
+                        )
+                    ),
                     vol.Required(
                         CONF_APIKEY,
                         default=current_options.get(
                             CONF_APIKEY, current_data.get(CONF_APIKEY, "")
                         ),
-                    ): str,
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
                     vol.Optional(
                         CONF_EXTPV,
                         default=current_options.get(
@@ -320,5 +354,6 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                     ): bool,
                 }
             ),
+            description_placeholders={"device_sn": device_sn, "name": name},
             errors=errors,
         )

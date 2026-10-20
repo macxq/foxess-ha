@@ -144,6 +144,22 @@ async def test_step2_shown_after_valid_api_key(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_step2_preselects_single_device(hass: HomeAssistant) -> None:
+    """When only 1 device is returned, it is suggested by default."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    assert _get_suggested(result, CONF_DEVICESN) == MOCK_DEVICES[0]["deviceSN"]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_create_entry(
     hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
@@ -163,7 +179,7 @@ async def test_create_entry(
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == STEP2_INPUT["deviceSN"]
+    assert result["title"] == f"{STEP2_INPUT[CONF_NAME]} ({STEP2_INPUT['deviceSN']})"
     assert result["data"] == {
         "apiKey": STEP1_INPUT["apiKey"],
         "deviceSN": STEP2_INPUT["deviceSN"],
@@ -196,6 +212,7 @@ async def test_create_entry_default_name(
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == f"FoxESS ({STEP2_INPUT['deviceSN']})"
     assert result["data"][CONF_NAME] == "FoxESS"
 
 
@@ -693,7 +710,7 @@ async def test_async_step_import_success(
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "YAML_DEVICE_SN"
+    assert result["title"] == f"{yaml_config[CONF_NAME]} ({yaml_config[CONF_DEVICESN]})"
     assert result["data"]["apiKey"] == "yaml-api-key"
     assert result["data"]["deviceSN"] == "YAML_DEVICE_SN"
     assert result["data"]["deviceID"] == "YAML_DEVICE_ID"
