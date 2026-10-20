@@ -133,9 +133,10 @@ last_api = 0
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up FoxESS sensors from a config entry."""
+    config = {**config_entry.data, **config_entry.options}
     await _async_setup_foxess(
         hass,
-        config_entry.data,
+        config,
         async_add_entities,
         config_entry,
     )

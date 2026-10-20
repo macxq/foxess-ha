@@ -9,8 +9,9 @@ from typing import Any
 from aiohttp import ClientError
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
@@ -25,7 +26,10 @@ from .sensor import (
     CONF_APIKEY,
     CONF_DEVICEID,
     CONF_DEVICESN,
+    CONF_EVO,
     CONF_EXTPV,
+    CONF_GET_VARIABLES,
+    CONF_XTZONE,
     DEFAULT_NAME,
     YAML_CONFIGS_KEY,
     GetAuth,
@@ -212,5 +216,76 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_APIKEY): str}),
             description_placeholders={"device_sn": reauth_entry.data[CONF_DEVICESN]},
+            errors=errors,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> FoxESSOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return FoxESSOptionsFlowHandler()
+
+
+class FoxESSOptionsFlowHandler(OptionsFlow):
+    """Handle options flow for FoxESS."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage FoxESS options."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            new_api_key = user_input.get(CONF_APIKEY)
+            current_api_key = self.config_entry.options.get(
+                CONF_APIKEY, self.config_entry.data.get(CONF_APIKEY)
+            )
+            if new_api_key and new_api_key != current_api_key:
+                _, error = await _fetch_device_list(self.hass, new_api_key)
+                if error in ("invalid_auth", "cannot_connect"):
+                    errors["base"] = error
+
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
+
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_APIKEY,
+                        default=current_options.get(
+                            CONF_APIKEY, current_data.get(CONF_APIKEY, "")
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_EXTPV,
+                        default=current_options.get(
+                            CONF_EXTPV, current_data.get(CONF_EXTPV, False)
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_EVO,
+                        default=current_options.get(
+                            CONF_EVO, current_data.get(CONF_EVO, False)
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_XTZONE,
+                        default=current_options.get(
+                            CONF_XTZONE, current_data.get(CONF_XTZONE, False)
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_GET_VARIABLES,
+                        default=current_options.get(
+                            CONF_GET_VARIABLES, current_data.get(CONF_GET_VARIABLES, False)
+                        ),
+                    ): bool,
+                }
+            ),
             errors=errors,
         )

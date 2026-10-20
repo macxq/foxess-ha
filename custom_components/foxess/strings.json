@@ -41,5 +41,30 @@
       "already_configured": "Device is already configured",
       "reauth_successful": "Re-authentication was successful"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FoxESS Options",
+        "description": "Configure settings for this FoxESS inverter.",
+        "data": {
+          "apiKey": "API Key",
+          "extendPV": "Extended PV strings (PV7–18)",
+          "Evo": "FoxESS EVO series mode",
+          "xtZone": "Cross Time Zone adjustment",
+          "Restrict": "Restrict API variables"
+        },
+        "data_description": {
+          "extendPV": "Enable for Fox R series or inverters with more than 6 PV strings.",
+          "Evo": "Enable if using a FoxESS EVO inverter where device details are incomplete.",
+          "xtZone": "Enable if inverter timestamps use a different time zone than Home Assistant.",
+          "Restrict": "Enable if Fox Cloud returns errors for large variable lists."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to FoxESS Cloud",
+      "invalid_auth": "Invalid API key"
+    }
   }
 }

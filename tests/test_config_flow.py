@@ -574,3 +574,90 @@ async def test_reauth_cannot_connect(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+# ---------------------------------------------------------------------------
+# Options Flow tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_form_shown(hass: HomeAssistant) -> None:
+    """Opening options flow shows the init form with current options."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MOCK_CONFIG["deviceSN"],
+        data=MOCK_CONFIG,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    assert not result["errors"]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_success(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Submitting valid options creates an entry and updates options."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MOCK_CONFIG["deviceSN"],
+        data=MOCK_CONFIG,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    new_options = {
+        "apiKey": "new-api-key",
+        "extendPV": True,
+        "Evo": True,
+        "xtZone": True,
+        "Restrict": True,
+    }
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            new_options,
+        )
+
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"] == new_options
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_invalid_api_key(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Entering an invalid API key in options flow shows invalid_auth error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MOCK_CONFIG["deviceSN"],
+        data=MOCK_CONFIG,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    bad_options = {
+        "apiKey": "bad-api-key",
+        "extendPV": False,
+        "Evo": False,
+        "xtZone": False,
+        "Restrict": False,
+    }
+
+    with _patch_fetch_device_list(([], "invalid_auth")):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            bad_options,
+        )
+
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["step_id"] == "init"
+    assert result2["errors"] == {"base": "invalid_auth"}
