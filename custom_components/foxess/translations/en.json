@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "FoxESS Cloud",
-        "description": "Enter your FoxESS OpenAPI key (obtained from https://developer-eu.foxesscloud.com/apiKeys) to fetch your devices",
+        "description": "Enter your FoxESS OpenAPI key to fetch your devices",
         "data": {
           "apiKey": "API Key"
         }
