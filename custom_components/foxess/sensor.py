@@ -84,7 +84,7 @@ CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
-_AUTH_ERRNO = {40256, 41808}  # Invalid/empty API key per FoxESS OpenAPI docs
+_AUTH_ERRNO = {40256, 41808, 41809}  # Invalid/empty API key per FoxESS OpenAPI docs
 
 # Key under hass.data where YAML-configured device info is stored so the
 # config flow can detect conflicts and preserve the original deviceID.
@@ -127,6 +127,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 token = None
+timeslice = {}
+last_api = 0
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -188,7 +190,6 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         _LOGGER.debug("Get Variables is full variable mode")
     else:
         _LOGGER.warning("Get Variables is in restricted mode")
-    timeslice = {}
     timeslice[devicesn] = RETRY_NEXT_SLOT
     last_api = 0
     LastHour = 0

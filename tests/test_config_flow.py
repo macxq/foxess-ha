@@ -382,6 +382,46 @@ async def test_fetch_device_list_invalid_auth_401(hass: HomeAssistant) -> None:
     assert devices == []
 
 
+@pytest.mark.parametrize("auth_errno", [40256, 41808, 41809])
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_fetch_device_list_auth_errno(
+    hass: HomeAssistant, auth_errno: int
+) -> None:
+    """An OpenAPI response with an auth errno (40256, 41808, 41809) maps to invalid_auth."""
+    with patch(
+        "custom_components.foxess.config_flow.async_get_clientsession",
+        return_value=_make_mock_session(json_return_value={"errno": auth_errno}),
+    ):
+        devices, error = await _fetch_device_list(hass, "bad-key")
+
+    assert error == "invalid_auth"
+    assert devices == []
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_fetch_device_list_calls_waitforapi(hass: HomeAssistant) -> None:
+    """_fetch_device_list awaits waitforAPI before making request."""
+    response = {
+        "errno": 0,
+        "result": {"data": MOCK_DEVICES},
+    }
+    with (
+        patch(
+            "custom_components.foxess.config_flow.async_get_clientsession",
+            return_value=_make_mock_session(json_return_value=response),
+        ),
+        patch(
+            "custom_components.foxess.config_flow.waitforAPI",
+            new_callable=AsyncMock,
+        ) as mock_wait,
+    ):
+        devices, error = await _fetch_device_list(hass, "valid-key")
+        mock_wait.assert_awaited_once()
+
+    assert error is None
+    assert devices == MOCK_DEVICES
+
+
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_fetch_device_list_unknown_errno(hass: HomeAssistant) -> None:
     """An unrecognised errno falls back to cannot_connect."""

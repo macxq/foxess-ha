@@ -20,6 +20,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .sensor import (
+    _AUTH_ERRNO,
     _ENDPOINT_OA_DOMAIN,
     CONF_APIKEY,
     CONF_DEVICEID,
@@ -28,6 +29,7 @@ from .sensor import (
     DEFAULT_NAME,
     YAML_CONFIGS_KEY,
     GetAuth,
+    waitforAPI,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +49,8 @@ async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None
     headers = GetAuth().get_signature(token=api_key, path=_DEVICE_LIST_PATH)
     session = async_get_clientsession(hass, verify_ssl=False)
     try:
+        # Rate limit guard: FoxESS OpenAPI enforces 1 request/second across account
+        await waitforAPI()
         # This assumes that the user has a maximum of 25 inverters.
         resp = await session.post(
             _DEVICE_LIST_ENDPOINT,
@@ -68,6 +72,9 @@ async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None
 
     errno = data.get("errno", -1)
     if errno != 0:
+        if errno in _AUTH_ERRNO:
+            _LOGGER.warning("FoxESS API rejected credentials with errno: %s", errno)
+            return [], "invalid_auth"
         _LOGGER.error("Unexpected errno from FoxESS device list API: %s", errno)
         return [], "cannot_connect"
 
