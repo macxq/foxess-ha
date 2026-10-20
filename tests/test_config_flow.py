@@ -9,7 +9,7 @@ from custom_components.foxess.sensor import YAML_CONFIGS_KEY
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -661,3 +661,65 @@ async def test_options_flow_invalid_api_key(
     assert result2["type"] is FlowResultType.FORM
     assert result2["step_id"] == "init"
     assert result2["errors"] == {"base": "invalid_auth"}
+
+
+# ---------------------------------------------------------------------------
+# YAML Import tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_async_step_import_success(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Importing YAML config creates a ConfigEntry and persistent notification."""
+    yaml_config = {
+        "apiKey": "yaml-api-key",
+        CONF_DEVICESN: "YAML_DEVICE_SN",
+        "deviceID": "YAML_DEVICE_ID",
+        CONF_NAME: "YAML Inverter",
+        "extendPV": True,
+        "Evo": True,
+        "xtZone": True,
+        "Restrict": True,
+    }
+    with patch(
+        "homeassistant.components.persistent_notification.async_create"
+    ) as mock_notify:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_IMPORT},
+            data=yaml_config,
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "YAML_DEVICE_SN"
+    assert result["data"]["apiKey"] == "yaml-api-key"
+    assert result["data"]["deviceSN"] == "YAML_DEVICE_SN"
+    assert result["data"]["deviceID"] == "YAML_DEVICE_ID"
+    assert result["data"]["name"] == "YAML Inverter"
+    assert result["data"]["extendPV"] is True
+    assert result["data"]["Evo"] is True
+    mock_notify.assert_called_once()
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_async_step_import_already_configured(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Importing a device that is already configured aborts cleanly."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="YAML_DEVICE_SN",
+        data={CONF_DEVICESN: "YAML_DEVICE_SN", "apiKey": "key"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_IMPORT},
+        data={CONF_DEVICESN: "YAML_DEVICE_SN", "apiKey": "key"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"

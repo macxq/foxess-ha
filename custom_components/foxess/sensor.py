@@ -36,6 +36,7 @@ from homeassistant.const import (
     UnitOfReactivePower,
     PERCENTAGE,
 )
+from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -46,6 +47,7 @@ from homeassistant.helpers.icon import icon_for_battery_level
 import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
+DOMAIN = "foxess"
 _ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
 _ENDPOINT_OA_REPORT = "/op/v0/device/report/query"
@@ -143,15 +145,42 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the FoxESS sensor."""
+    """Set up the FoxESS sensor from YAML."""
+    device_sn = config.get(CONF_DEVICESN)
+    if not device_sn:
+        return
+
     # Advertise YAML config so the config flow can detect conflicts and
     # preserve the original deviceID (which may differ from deviceSN).
     yaml_configs = hass.data.setdefault(YAML_CONFIGS_KEY, {})
-    yaml_configs[config[CONF_DEVICESN]] = {
+    yaml_configs[device_sn] = {
         CONF_DEVICEID: config.get(CONF_DEVICEID),
         CONF_NAME: config.get(CONF_NAME, DEFAULT_NAME),
     }
-    await _async_setup_foxess(hass, config, async_add_entities)
+
+    # Check if a ConfigEntry already exists for this deviceSN
+    current_entries = hass.config_entries.async_entries(DOMAIN)
+    if any(
+        entry.unique_id == device_sn or entry.data.get(CONF_DEVICESN) == device_sn
+        for entry in current_entries
+    ):
+        _LOGGER.debug(
+            "FoxESS device %s is already configured in UI, skipping YAML setup",
+            device_sn,
+        )
+        return
+
+    # Trigger automatic import into UI
+    _LOGGER.info(
+        "Importing FoxESS device %s from configuration.yaml into UI", device_sn
+    )
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_IMPORT},
+            data=config,
+        )
+    )
 
 
 async def _async_setup_foxess(hass, config, async_add_entities, config_entry=None):

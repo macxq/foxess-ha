@@ -9,6 +9,7 @@ from typing import Any
 from aiohttp import ClientError
 import voluptuous as vol
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
@@ -29,6 +30,7 @@ from .sensor import (
     CONF_EVO,
     CONF_EXTPV,
     CONF_GET_VARIABLES,
+    CONF_V1_API,
     CONF_XTZONE,
     DEFAULT_NAME,
     YAML_CONFIGS_KEY,
@@ -99,6 +101,37 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialise the config flow."""
         self._api_key: str | None = None
         self._devices: list[dict] | None = None
+
+    async def async_step_import(
+        self, import_data: dict[str, Any]
+    ) -> ConfigFlowResult:
+        """Handle automatic import from YAML configuration."""
+        device_sn = import_data[CONF_DEVICESN]
+        await self.async_set_unique_id(device_sn)
+        self._abort_if_unique_id_configured()
+
+        persistent_notification.async_create(
+            self.hass,
+            f"FoxESS configuration for device {device_sn} was imported into Home Assistant from configuration.yaml.\n\n"
+            "You can safely remove the `foxess` platform entry from your configuration.yaml.",
+            title="FoxESS Configuration Imported",
+            notification_id=f"foxess_import_{device_sn}",
+        )
+
+        return self.async_create_entry(
+            title=device_sn,
+            data={
+                CONF_APIKEY: import_data[CONF_APIKEY],
+                CONF_DEVICESN: device_sn,
+                CONF_DEVICEID: import_data.get(CONF_DEVICEID, device_sn),
+                CONF_NAME: import_data.get(CONF_NAME, DEFAULT_NAME),
+                CONF_EXTPV: import_data.get(CONF_EXTPV, False),
+                CONF_EVO: import_data.get(CONF_EVO, False),
+                CONF_XTZONE: import_data.get(CONF_XTZONE, False),
+                CONF_GET_VARIABLES: import_data.get(CONF_GET_VARIABLES, False),
+                CONF_V1_API: import_data.get(CONF_V1_API, True),
+            },
+        )
 
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Handle the initial step — collect API key and discover devices."""
