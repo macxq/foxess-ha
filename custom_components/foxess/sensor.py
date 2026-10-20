@@ -2234,6 +2234,7 @@ class FoxESSBatSoC(FoxESSEntity):
 
 
 class FoxESSBatMinSoC(FoxESSEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = "%"
 
@@ -2265,6 +2266,7 @@ class FoxESSBatMinSoC(FoxESSEntity):
 
 
 class FoxESSBatMinSoConGrid(FoxESSEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = "%"
 
@@ -2327,6 +2329,7 @@ class FoxESSTemp(FoxESSEntity):
 
 
 class FoxESSResidualEnergy(FoxESSEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
@@ -2360,6 +2363,7 @@ class FoxESSResidualEnergy(FoxESSEntity):
 
 
 class FoxESSResponseTime(FoxESSEntity):
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "mS"
 
     def __init__(self, coordinator, name, deviceID):

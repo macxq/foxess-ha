@@ -168,3 +168,26 @@ async def test_async_setup_foxess_populates_device_info_on_all_entities(hass: Ho
             assert ent.device_info["name"] == "Dom"
             assert ent.device_info["manufacturer"] == "FoxESS"
             assert ent.device_info["serial_number"] == "662T602014NC048"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_measurement_sensors_have_state_class():
+    """Verify sensors requiring statistics/Energy Dashboard have SensorStateClass.MEASUREMENT."""
+    from homeassistant.components.sensor import SensorStateClass
+
+    coordinator = MagicMock()
+    for cls in [
+        sensor.FoxESSBatSoC,
+        sensor.FoxESSTemp,
+        sensor.FoxESSBatMinSoC,
+        sensor.FoxESSBatMinSoConGrid,
+        sensor.FoxESSResidualEnergy,
+        sensor.FoxESSResponseTime,
+    ]:
+        try:
+            entity = cls(coordinator, "Inverter", "DEV1", "NameVal", "uniq", "key")
+        except TypeError:
+            entity = cls(coordinator, "Inverter", "DEV1")
+
+        assert entity.state_class == SensorStateClass.MEASUREMENT, f"{cls.__name__} missing MEASUREMENT state_class"
+
