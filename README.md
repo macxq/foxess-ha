@@ -23,65 +23,82 @@ Copy the content of this integrations `custom_components/foxess` folder into you
 
 ## 💾 Configuration
 
-Edit your home-assistant `/configuration.yaml`  and add:
+### 📱 UI Configuration (Recommended)
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=foxess)
+
+1. In Home Assistant, navigate to **Settings** ➔ **Devices & services**.
+2. Click **Add Integration** and search for **FoxESS**.
+3. **Step 1 - API Key:** Enter your personal `apiKey` (masked password field with toggle 👁️).
+4. **Step 2 - Select Inverter:** Select your inverter from the discovered devices list (pre-selected automatically if you have one inverter).
+5. If you have multiple inverters in your FoxESS account, simply click **Add Integration** again to add each additional inverter.
+
+#### How to get your API Key:
+1. Log into the FoxESS OpenAPI Developer Portal at [developer-eu.foxesscloud.com/apiKeys](https://developer-eu.foxesscloud.com/apiKeys) (or [developer-us.foxesscloud.com](https://developer-us.foxesscloud.com) for US accounts) using your FoxESS Cloud account credentials.
+2. Click **Generate API Key** (or copy your existing key).
+3. Paste the API key into the Home Assistant setup form.
+
+---
+
+### ⚙️ Options Flow (Integration Settings)
+
+You can adjust settings for each configured inverter without restarting Home Assistant:
+1. Go to **Settings** ➔ **Devices & services** ➔ **FoxESS**.
+2. Click **Configure** on the inverter entry card:
+   - **API Key:** Update or change your FoxESS API key.
+   - **Inverter SN:** Displays the assigned serial number for this device (read-only).
+   - **extendPV:** Enable for Fox R series or inverters supporting more than 6 PV strings (attempts to read PV strings 7–18).
+   - **Evo:** Enable support for FoxESS Evo series inverters.
+   - **xtZone:** Adjust time zone behavior if required for your inverter's reporting region.
+   - **Restrict:** Restrict API polling frequency to conserve daily API quotas.
+
+---
+
+### 🔄 Automatic Migration from YAML
+
+If you previously configured FoxESS using `configuration.yaml`:
+- When Home Assistant starts with this version, your configuration will be **automatically imported** into a UI Config Entry.
+- **Zero data loss:** All entity unique IDs (`{deviceID}{suffix}`) and historical sensor statistics are preserved.
+- A persistent notification will appear in Home Assistant confirming successful migration.
+- After migration, you can safely remove the `foxess` block from your `configuration.yaml`.
+
+---
+
+<details>
+<summary><b>⌨️ Legacy YAML Configuration (Deprecated)</b></summary>
+
+> [!NOTE]
+> YAML configuration is deprecated and will be removed in a future release. Please use the UI configuration flow instead.
 
 ```yaml
 sensor:
   - platform: foxess
-    deviceID: enter_your_inverter_id
+    deviceID: enter_your_inverter_serial_number
     deviceSN: enter_your_inverter_serial_number
     apiKey: enter_your_personal_api_key
 ```
 
-#### Auxiliary notes:
-- `username & password` are no longer required for this integration, it uses your_personal_api_key instead.
+- `your_personal_api_key`: generated at [developer-eu.foxesscloud.com/apiKeys](https://developer-eu.foxesscloud.com/apiKeys) (or [developer-us.foxesscloud.com](https://developer-us.foxesscloud.com) for US accounts).
+- `deviceSN`: inverter serial number from Foxesscloud.com under Device -> Inverter.
+- `deviceID`: for all installations since March 2024, reuse `deviceSN` as `deviceID`. For older legacy installations, keep the original inverter UUID from the Foxess Cloud URL to preserve historical entity unique IDs.
+- `extendPV`: set to `true` if your inverter has more than 6 PV strings.
 
-- `your_inverter_serial_number` is the serial number of the inverter this integration will be gathering data from, you can see the deviceSN by logging into the Foxesscloud.com website, in the left hand menu click on 'Device', then 'Inverter' this will display a table and your Inverter SN - the format will be similar to : 60BHnnnnnnXnnn - copy and paste this into the config setting deviceSN: replacing the text `foxesscloud_inverter_serial_number`
+Multi-inverter YAML example:
+```yaml
+sensor:
+  - platform: foxess
+    name: Fox1
+    deviceID: enter_your_inverter_id_1
+    deviceSN: enter_your_inverter_serial_number_1
+    apiKey: enter_your_personal_api_key_1
+  - platform: foxess
+    name: Fox2
+    deviceID: enter_your_inverter_id_2
+    deviceSN: enter_your_inverter_serial_number_2
+    apiKey: enter_your_personal_api_key_2
+```
 
-- `your_personal_api_key` is a personal api_key that is generated in your profile selection of your Foxesscloud account. To do this log into the Foxesscloud.com website, click on the 'profile icon' in the top right corner and select 'User Profile'. Then on the menu on the left hand side select 'API Management' and click 'Generate API Key, the long string that it generates should be copied and pasted into the platform config setting of your configuration.yaml apiKey: replacing the text `foxesscloud_personal_api_key` (see example above).
-
-- `your_inverter_id` ⚠️  Please note the inverter_id requirement has changed and the deviceID is only required for legacy installations installed prior to the OpenAPI being introduced, for these older installations do not remove it as it will affect your entity history and follow the notes for legacy installations below.
-
-   **For new 'OpenAPI' installations, follow these instructions:**
-
-    For all new OpenAPI installs (since March 2024) simply re-use your unique inverter_serial_number `deviceSN:` in the `deviceID:` (i.e. you would enter your inverter serial number in both of these fields)
-   i.e. it would look like this:
-   ```yaml
-   sensor:
-     - platform: foxess
-       deviceID: enter_your_inverter_serial_number
-       deviceSN: enter_your_inverter_serial_number
-       apiKey: enter_your_personal_api_key
-   ```
-
-
-   For **legacy installations only** you must continue to use the inverter_id as it sets the unique_id for the entities and it will delete your entity history if it is changed.
-   It can be found in the UUID on the foxesscloud in the url path of the `Inverter Details` page; make sure that this is exact value from inverter details page address between the %2522 and %2522 characters:
-![112](https://github.com/macxq/foxess-ha/assets/123640536/1e024286-7215-4bab-8e7d-5dfe5e719275)
-
-- Fox R series or inverters with more than 6 PV strings - if you have an inverter that supports more than 16 PV strings, please add the following switch `extendPV: true` to your platform config and the integration will attempt to read PV strings 7-18 volts, current power sensors.
-   ```
-       deviceID: enter_your_inverter_serial_number
-       deviceSN: enter_your_inverter_serial_number
-       apiKey: enter_your_personal_api_key
-       extendPV: true
-   ```
-
-
-- Multi-inverter support - if you have more than one FoxESS device in your installation, you can leverage the optional `name` field in your config,
-   ```
-   sensor:
-     - platform: foxess
-       name: Fox1
-       deviceID: enter_your_inverter_id_1
-       deviceSN: enter_your_inverter_serial_number_1
-       apiKey: enter_your_personal_api_key_1
-     - platform: foxess
-       name: Fox2
-       deviceID: enter_your_inverter_id_2
-       deviceSN: enter_your_inverter_serial_number_2
-       apiKey: enter_your_personal_api_key_2
-   ```
+</details>
  
 
 
@@ -199,7 +216,7 @@ logger:
 ## FoxESS Open API Access and Limits
 FoxESS provide an OpenAPI that allows registered users to make request to return datasets.
 
-The OpenAPI access is limited and each user must have a personal_api_key to access it, this personal_api_key can be generated by logging into the FoxESS cloud wesbite - then click on the Profile Icon in the top right hand corner of the screen, select User Profile and then from the menu select API Management, click the button to 'Generate API Key' - this long string of numbers is your personal_api_key and must be used for access to your systems details.
+The OpenAPI access is limited and each user must have an `apiKey` to access it. This API key can be generated by logging into the FoxESS Developer Portal at [developer-eu.foxesscloud.com/apiKeys](https://developer-eu.foxesscloud.com/apiKeys) (or [developer-us.foxesscloud.com](https://developer-us.foxesscloud.com) for US accounts) using your FoxESS Cloud account credentials and clicking 'Generate API Key'. Copy this key and use it to configure the integration.
 
 The OpenAPI has a limit of 1,440 API calls per day, after which the OpenAPI will stop responding to requests and generate a "40400" error.
 
