@@ -88,8 +88,11 @@ CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
 CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
 DEFAULT_ENERGY_GENERATED_SANITY = 100.0
+CONF_REDUCE_API_CALLS = "reduceAPICalls"
+DEFAULT_REDUCE_API_CALLS = False
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
+RETRY_IN_10_MINS = 20
 _AUTH_ERRNO = {40256, 41808, 41809}  # Invalid/empty API key per FoxESS OpenAPI docs
 
 # Key under hass.data where YAML-configured device info is stored so the
@@ -132,6 +135,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(
             CONF_ENERGY_GENERATED_SANITY, default=DEFAULT_ENERGY_GENERATED_SANITY
         ): cv.positive_float,
+        vol.Optional(
+            CONF_REDUCE_API_CALLS, default=DEFAULT_REDUCE_API_CALLS
+        ): cv.boolean,
     }
 )
 
@@ -207,6 +213,9 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         config.get(CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY)
         or DEFAULT_ENERGY_GENERATED_SANITY
     )
+    reduce_api_calls = bool(
+        config.get(CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS)
+    )
     _LOGGER.debug("API Key: %s", f"...{apiKey[-4:]}" if apiKey else "(unset)")
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
@@ -217,6 +226,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
     _LOGGER.debug("v1 Api Calls: %s", V1_Api)
     _LOGGER.debug("EVO: %s", Evo)
     _LOGGER.debug("Energy Sanity Check: %s kWh", energyGeneratedSanityCheck)
+    _LOGGER.debug("Reduced API Calls Mode: %s", reduce_api_calls)
     if V1_Api is not False:
         V1_Api = True
         _LOGGER.debug("v1 Api Calls Enabled")
@@ -253,12 +263,18 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         _LOGGER.debug("Time now: %s, last %s", hournow, LastHour)
         tslice = timeslice[devicesn] + 1 # increment current device time slice
         timeslice[devicesn] = tslice
-        if tslice % 5 == 0:
+
+        main_poll_due = (tslice % 10 == 0) if reduce_api_calls else (tslice % 5 == 0)
+        detail_due = (tslice % 30 == 0) if reduce_api_calls else (tslice % 15 == 0)
+        report_due = (tslice == 0) if reduce_api_calls else (tslice % 15 == 0)
+        retry_slot = RETRY_IN_10_MINS if reduce_api_calls else RETRY_IN_5_MINS
+
+        if main_poll_due:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
             # try the openapi see if we get a response
             geterror = FetchResult.OK
-            if tslice % 15 == 0:
-                # get device detail at startup, then every 15 minutes to save api calls
+            if detail_due:
+                # get device detail at startup, then periodically to save api calls
                 if Evo:
                     # Evo not currently in device detail, use list and fill partial blanks
                     geterror = await getOADeviceList(hass, allData, devicesn, apiKey)
@@ -288,7 +304,9 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                         await getOABatterySettings(hass, allData, devicesn, apiKey)
                         await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
-                    geterror = await getRaw(hass, allData, apiKey, devicesn)
+                    geterror = await getRaw(
+                        hass, allData, apiKey, devicesn, reduce_api_calls=reduce_api_calls
+                    )
                     if geterror is FetchResult.AUTH_FAILED:
                         if config_entry is not None:
                             raise ConfigEntryAuthFailed("FoxESS API key rejected")
@@ -298,7 +316,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                         )
                         return allData
                     if not geterror:
-                        if tslice % 15 == 0:  # do at startup and every 15 minutes
+                        if report_due:  # do at startup and periodically (every 15m or 60m)
                             await asyncio.sleep(1)  # OpenAPI demand limit
                             geterror = await getReport(hass, allData, apiKey, devicesn)
                             if not geterror:
@@ -313,7 +331,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                             if geterror:
                                 geterror = FetchResult.OK
                                 allData["online"] = False
-                                tslice = RETRY_IN_5_MINS  # retry in 5 minutes
+                                tslice = retry_slot  # retry in 5 or 10 minutes
                     else:
                         _LOGGER.debug("get variables failed")
                         if statetest == 2:
@@ -323,7 +341,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                                 devicesn,
                             )
                             allData["online"] = False
-                            tslice = RETRY_IN_5_MINS  # retry in 5 minutes
+                            tslice = retry_slot  # retry in 5 or 10 minutes
                         else:
                             if geterror is FetchResult.DNS_TIMEOUT:
                                 _LOGGER.warning("Fox Cloud - DNS fail, retry in 1 minute")
@@ -333,17 +351,17 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                                 else:
                                     tslice = RETRY_NEXT_SLOT
                             else:
-                                # The get variables api call failed, leave it 5 minutes
+                                # The get variables api call failed, leave it 5 or 10 minutes
                                 _LOGGER.debug("slowing retry response for SN: %s", devicesn)
                                 allData["online"] = False
-                                tslice = RETRY_IN_5_MINS  # retry in 5 minutes
+                                tslice = retry_slot  # retry in 5 or 10 minutes
                         geterror = FetchResult.OK
                 else:
                     if statetest == 3:
                         # The inverter is off-line, no raw data polling, don't update entities
-                        # retry device detail call every 5 minutes until it comes back on-line
+                        # retry device detail call periodically until it comes back on-line
                         allData["online"] = False
-                        tslice = RETRY_IN_5_MINS  # retry in 5 minutes
+                        tslice = retry_slot  # retry in 5 or 10 minutes
                         _LOGGER.debug("Inverter off-line for SN: %s", devicesn)
 
                 if not allData["online"]:
@@ -1203,7 +1221,7 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
             return FetchResult.ERROR
 
 
-async def getRaw(hass, allData, apiKey, devicesn):
+async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False):
     await waitforAPI()  # check for api delay
 
     # "deviceSN" used for OpenAPI and it only fetches the real time data
@@ -1322,6 +1340,7 @@ async def getRaw(hass, allData, apiKey, devicesn):
             except:
                 tsrcv = 0
             age = 0
+            max_age = 661 if reduce_api_calls else 361
             if tsrcv != 0:
                 testd = datetime.now()
                 tsnow = round(time.time())
@@ -1334,14 +1353,15 @@ async def getRaw(hass, allData, apiKey, devicesn):
                     tsnow,
                     age,
                 )
-                if age > 361:
+                if age > max_age:
                     _LOGGER.debug(
-                        "OA Variables invalid age: %s vs %s timestamps r:%s now:%s, age: %s",
+                        "OA Variables invalid age: %s vs %s timestamps r:%s now:%s, age: %s (max: %s)",
                         timercv,
                         testd,
                         tsrcv,
                         tsnow,
                         age,
+                        max_age,
                     )
 
             result = test[0].get("datas")
@@ -1399,9 +1419,10 @@ async def getRaw(hass, allData, apiKey, devicesn):
                         if variableValue is not None:
                             if variableValue == "161" or variableValue == "162":
                                 # waiting and solar only so set off-line flag
-                                if age < 361:
+                                if age < max_age:
                                     _LOGGER.debug(
-                                        "Waiting but data less than 5 minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
+                                        "Waiting but data less than %s minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
+                                        round(max_age / 60),
                                         variableValue,
                                         hasBat,
                                         allData["online"],

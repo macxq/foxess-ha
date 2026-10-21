@@ -14,10 +14,12 @@
         "data": {
           "deviceSN": "Device",
           "name": "Name",
-          "extendPV": "Extended PV strings (PV7–18)"
+          "extendPV": "Extended PV strings (PV7–18)",
+          "reduceAPICalls": "Reduced API calls mode (Eco mode)"
         },
         "data_description": {
-          "extendPV": "Enable for Fox R series inverters or any inverter with more than 6 PV strings. Reads voltage, current, and power for PV strings 7–18."
+          "extendPV": "Enable for Fox R series inverters or any inverter with more than 6 PV strings. Reads voltage, current, and power for PV strings 7–18.",
+          "reduceAPICalls": "Polls telemetry every 10 minutes instead of 5 minutes to stay well below the FoxESS 1,440 daily API quota."
         }
       },
       "reauth_confirm": {
@@ -51,6 +53,7 @@
           "deviceSN": "Assigned Inverter",
           "apiKey": "API Key",
           "energyGeneratedSanityCheck": "Daily energy sanity check threshold (kWh)",
+          "reduceAPICalls": "Reduced API calls mode (Eco mode)",
           "extendPV": "Extended PV strings (PV7–18)",
           "Evo": "FoxESS EVO series mode",
           "xtZone": "Cross Time Zone adjustment",
@@ -59,6 +62,7 @@
         "data_description": {
           "deviceSN": "The serial number of this inverter.",
           "energyGeneratedSanityCheck": "Maximum expected daily energy generation in kWh. Readings above this threshold are ignored to protect Energy Dashboard statistics from corrupted spikes (default: 100 kWh).",
+          "reduceAPICalls": "Halves API polling frequency (10-minute intervals) to prevent exceeding the FoxESS 1,440 daily call quota, especially useful for multi-inverter setups or accounts linked to VPP providers.",
           "extendPV": "Enable for Fox R series or inverters with more than 6 PV strings.",
           "Evo": "Enable if using a FoxESS EVO inverter where device details are incomplete.",
           "xtZone": "Enable if inverter timestamps use a different time zone than Home Assistant.",

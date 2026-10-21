@@ -187,6 +187,7 @@ async def test_create_entry(
         CONF_NAME: STEP2_INPUT[CONF_NAME],
         "extendPV": False,
         "energyGeneratedSanityCheck": 100.0,
+        "reduceAPICalls": False,
     }
     assert result["result"].unique_id == STEP2_INPUT["deviceSN"]
     mock_setup_entry.assert_called_once()
@@ -637,6 +638,7 @@ async def test_options_flow_success(
         "Evo": True,
         "xtZone": True,
         "Restrict": True,
+        "reduceAPICalls": False,
     }
 
     with _patch_fetch_device_list((MOCK_DEVICES, None)):
@@ -701,6 +703,7 @@ async def test_async_step_import_success(
         "Evo": True,
         "xtZone": True,
         "Restrict": True,
+        "reduceAPICalls": False,
     }
     with patch(
         "homeassistant.components.persistent_notification.async_create"
@@ -780,4 +783,97 @@ async def test_options_flow_energy_sanity_check(
 
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"][CONF_ENERGY_GENERATED_SANITY] == 150.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_reduce_api_calls(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Options flow allows configuring the reduceAPICalls parameter."""
+    from custom_components.foxess.sensor import CONF_REDUCE_API_CALLS
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MOCK_CONFIG["deviceSN"],
+        data=MOCK_CONFIG,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    new_options = {
+        "apiKey": "new-api-key",
+        CONF_REDUCE_API_CALLS: True,
+        "extendPV": False,
+        "Evo": False,
+        "xtZone": False,
+        "Restrict": False,
+    }
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            new_options,
+        )
+
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_REDUCE_API_CALLS] is True
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_step_device_reduce_api_calls(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Step device allows setting reduceAPICalls during setup."""
+    from custom_components.foxess.sensor import CONF_REDUCE_API_CALLS
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], STEP1_INPUT
+        )
+
+    custom_step2 = dict(STEP2_INPUT)
+    custom_step2[CONF_REDUCE_API_CALLS] = True
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], custom_step2
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_REDUCE_API_CALLS] is True
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_async_step_import_with_reduce_api_calls(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """YAML configuration with reduceAPICalls is properly imported."""
+    from custom_components.foxess.sensor import CONF_REDUCE_API_CALLS
+
+    yaml_config = {
+        "apiKey": "yaml-api-key",
+        "deviceSN": "YAML_DEVICE_SN_ECO",
+        "deviceID": "YAML_DEVICE_ID_ECO",
+        "name": "YAML Eco Inverter",
+        CONF_REDUCE_API_CALLS: True,
+    }
+    with patch(
+        "homeassistant.components.persistent_notification.async_create"
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_IMPORT},
+            data=yaml_config,
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_REDUCE_API_CALLS] is True
+
 

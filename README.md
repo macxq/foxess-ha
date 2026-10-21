@@ -48,6 +48,7 @@ You can adjust settings for each configured inverter at any time without restart
    - **Assigned Inverter:** Displays the serial number (`deviceSN`) for this device (read-only).
    - **API Key:** Update or change your FoxESS API key.
    - **Daily energy sanity check threshold (kWh) (`energyGeneratedSanityCheck`):** Maximum expected daily energy generation in kWh (default: `100.0` kWh). Readings above this threshold are ignored to protect Energy Dashboard statistics from corrupted spikes (e.g. when FoxESS Cloud erroneously reports lifetime yield instead of daily yield).
+   - **Reduced API calls mode (Eco mode) (`reduceAPICalls`):** Halves API polling frequency (10-minute intervals for real-time telemetry, 30-minute intervals for status details, 60-minute intervals for reports) to prevent hitting the FoxESS 1,440 daily call quota. Recommended for multi-inverter setups or systems connected to external Virtual Power Plant (VPP) providers (e.g. Amber Electric, Evergen).
    - **Extended PV strings (`extendPV`):** Enable for Fox R series or inverters supporting more than 6 PV strings (reads PV strings 7–18).
    - **FoxESS EVO series mode (`Evo`):** Enable if using a FoxESS EVO series inverter where device details are incomplete.
    - **Cross Time Zone adjustment (`xtZone`):** Enable if inverter timestamps use a different time zone than Home Assistant.
@@ -64,6 +65,7 @@ You can adjust settings for each configured inverter at any time without restart
 | `deviceID` | string | `deviceSN` | Inverter ID. Reuses `deviceSN` for all modern setups. Preserves legacy UUID on older setups. |
 | `name` | string | `"FoxESS"` | Friendly name prefix for inverter entities and device title. |
 | `energyGeneratedSanityCheck` | float | `100.0` | Daily generation ceiling (kWh). Spikes exceeding this value are rejected to safeguard Energy Dashboard statistics. |
+| `reduceAPICalls` | boolean | `false` | Enable reduced API call frequency (10-minute polling) to conserve daily quota on accounts with multiple inverters or external VPP providers. |
 | `extendPV` | boolean | `false` | Enable to read additional PV strings 7–18 for inverters with >6 strings. |
 | `Evo` | boolean | `false` | Enable support for FoxESS EVO series inverters. |
 | `xtZone` | boolean | `false` | Adjust time zone offset if inverter timestamps differ from HA local time. |
@@ -251,6 +253,18 @@ The integration paces the number of API calls that are made, with the following 
 The integration is using approximately 22 API calls an hour (528 a day and well within the 1,440).
 
 If you have multiple inverters in your account, you will receive 1,440 calls per inverter, so for 2 inverters you will have 2,880 api calls.
+
+### 🍃 Reduced API Calls Mode (Eco Mode)
+
+If your FoxESS account is shared with an external **Virtual Power Plant (VPP)** provider (e.g. Amber Electric, Evergen, Reposit) or you have multiple inverters and are approaching the 1,440 calls/day limit, enable **Reduced API calls mode (Eco mode)** in the integration settings (**Settings ➔ Devices & services ➔ FoxESS ➔ Configure**):
+
+- **Real time telemetry:** every 10 minutes (instead of 5 minutes)
+- **Site status and device details:** every 30 minutes (instead of 15 minutes)
+- **Energy total reports:** every 60 minutes (instead of 15 minutes)
+- **Daily generation report:** every 60 minutes
+- **Battery minSoC settings:** every 60 minutes
+
+This reduces polling to approximately **11 API calls per hour** (~264 calls per day per inverter), cutting API consumption by more than **50%** and ensuring your setup remains safely below daily quota limits.
 
 
 ## 📚 Usefull wiki articles
