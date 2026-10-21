@@ -50,6 +50,7 @@
         "data": {
           "deviceSN": "Assigned Inverter",
           "apiKey": "API Key",
+          "energyGeneratedSanityCheck": "Daily energy sanity check threshold (kWh)",
           "extendPV": "Extended PV strings (PV7–18)",
           "Evo": "FoxESS EVO series mode",
           "xtZone": "Cross Time Zone adjustment",
@@ -57,6 +58,7 @@
         },
         "data_description": {
           "deviceSN": "The serial number of this inverter.",
+          "energyGeneratedSanityCheck": "Maximum expected daily energy generation in kWh. Readings above this threshold are ignored to protect Energy Dashboard statistics from corrupted spikes (default: 100 kWh).",
           "extendPV": "Enable for Fox R series or inverters with more than 6 PV strings.",
           "Evo": "Enable if using a FoxESS EVO inverter where device details are incomplete.",
           "xtZone": "Enable if inverter timestamps use a different time zone than Home Assistant.",

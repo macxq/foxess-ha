@@ -191,3 +191,76 @@ def test_measurement_sensors_have_state_class():
 
         assert entity.state_class == SensorStateClass.MEASUREMENT, f"{cls.__name__} missing MEASUREMENT state_class"
 
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_sanity_check():
+    """Verify daily Energy Generated entity ignores spikes exceeding threshold."""
+    coordinator = MagicMock()
+    daily_entity = sensor.FoxESSEnergyGenerated(
+        coordinator, "Inverter", "DEV1", "Energy Generated", "energy-generated", "value", max_value=100.0
+    )
+    cumul_entity = sensor.FoxESSEnergyGenerated(
+        coordinator, "Inverter", "DEV1", "Energy Generated Cumulative", "energy-generated-cumulative", "cumulative"
+    )
+
+    # Normal daily reading
+    coordinator.data = {"reportDailyGeneration": {"value": 25.4, "cumulative": 1500.0}}
+    assert daily_entity.native_value == 25.4
+    assert cumul_entity.native_value == 1500.0
+
+    # Spurious spike (e.g. 33 MWh sent by cloud instead of daily value)
+    coordinator.data = {"reportDailyGeneration": {"value": 33000.0, "cumulative": 33000.0}}
+    assert daily_entity.native_value is None  # Daily entity ignores spike
+    assert cumul_entity.native_value == 33000.0  # Cumulative entity is not capped
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_solar_monotonic_ratchet_and_sanity():
+    """Verify FoxESSEnergySolar ratchets within a day and ignores spikes."""
+    import datetime
+    coordinator = MagicMock()
+    solar_entity = sensor.FoxESSEnergySolar(
+        coordinator, "Inverter", "DEV1", max_value=100.0
+    )
+
+    day1 = datetime.date(2026, 6, 1)
+    day2 = datetime.date(2026, 6, 2)
+
+    with patch("homeassistant.util.dt.now") as mock_now:
+        mock_now.return_value.date.return_value = day1
+
+        # Midday reading: 10 + 5 + 1 - 2 - 4 = 10 kWh
+        coordinator.data = {
+            "report": {
+                "loads": 10.0,
+                "chargeEnergyToTal": 5.0,
+                "feedin": 1.0,
+                "gridConsumption": 2.0,
+                "dischargeEnergyToTal": 4.0,
+            }
+        }
+        assert solar_entity.native_value == 10.0
+
+        # Further increase in afternoon: loads increases to 15 -> formula = 15 kWh
+        coordinator.data["report"]["loads"] = 15.0
+        assert solar_entity.native_value == 15.0
+
+        # Evening drop / calculation drift: loads drops to 14.5 -> formula = 14.5 kWh
+        # Ratchet must preserve 15.0 to prevent negative stats in Energy Dashboard
+        coordinator.data["report"]["loads"] = 14.5
+        assert solar_entity.native_value == 15.0
+
+        # Erroneous spike: formula yields 500 kWh (> 100.0 max_value)
+        coordinator.data["report"]["loads"] = 500.0
+        assert solar_entity.native_value == 15.0  # spike ignored, returns holding value
+
+        # Next day rollover: formula resets to 0.5 kWh
+        mock_now.return_value.date.return_value = day2
+        coordinator.data["report"]["loads"] = 0.5
+        coordinator.data["report"]["chargeEnergyToTal"] = 0.0
+        coordinator.data["report"]["feedin"] = 0.0
+        coordinator.data["report"]["gridConsumption"] = 0.0
+        coordinator.data["report"]["dischargeEnergyToTal"] = 0.0
+        assert solar_entity.native_value == 0.5
+
+

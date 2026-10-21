@@ -11,12 +11,15 @@ import voluptuous as vol
 
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, UnitOfEnergy
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     ConstantSelector,
     ConstantSelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -32,11 +35,13 @@ from .sensor import (
     CONF_APIKEY,
     CONF_DEVICEID,
     CONF_DEVICESN,
+    CONF_ENERGY_GENERATED_SANITY,
     CONF_EVO,
     CONF_EXTPV,
     CONF_GET_VARIABLES,
     CONF_V1_API,
     CONF_XTZONE,
+    DEFAULT_ENERGY_GENERATED_SANITY,
     DEFAULT_NAME,
     YAML_CONFIGS_KEY,
     GetAuth,
@@ -135,6 +140,9 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_XTZONE: import_data.get(CONF_XTZONE, False),
                 CONF_GET_VARIABLES: import_data.get(CONF_GET_VARIABLES, False),
                 CONF_V1_API: import_data.get(CONF_V1_API, True),
+                CONF_ENERGY_GENERATED_SANITY: import_data.get(
+                    CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY
+                ),
             },
         )
 
@@ -203,6 +211,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_DEVICEID: device_sn,
                         CONF_NAME: name,
                         CONF_EXTPV: user_input.get(CONF_EXTPV, False),
+                        CONF_ENERGY_GENERATED_SANITY: DEFAULT_ENERGY_GENERATED_SANITY,
                     },
                 )
 
@@ -308,6 +317,14 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
         current_data = self.config_entry.data
         device_sn = current_data.get(CONF_DEVICESN, "")
         name = current_data.get(CONF_NAME, DEFAULT_NAME)
+        sanity_check = float(
+            current_options.get(
+                CONF_ENERGY_GENERATED_SANITY,
+                current_data.get(
+                    CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY
+                ),
+            )
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -328,6 +345,17 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                             CONF_APIKEY, current_data.get(CONF_APIKEY, "")
                         ),
                     ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                    vol.Optional(
+                        CONF_ENERGY_GENERATED_SANITY,
+                        default=sanity_check,
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            step=1,
+                            mode=NumberSelectorMode.BOX,
+                            unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                        )
+                    ),
                     vol.Optional(
                         CONF_EXTPV,
                         default=current_options.get(
