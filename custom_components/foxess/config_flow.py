@@ -39,10 +39,12 @@ from .sensor import (
     CONF_EVO,
     CONF_EXTPV,
     CONF_GET_VARIABLES,
+    CONF_REDUCE_API_CALLS,
     CONF_V1_API,
     CONF_XTZONE,
     DEFAULT_ENERGY_GENERATED_SANITY,
     DEFAULT_NAME,
+    DEFAULT_REDUCE_API_CALLS,
     YAML_CONFIGS_KEY,
     GetAuth,
     waitforAPI,
@@ -143,6 +145,9 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_ENERGY_GENERATED_SANITY: import_data.get(
                     CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY
                 ),
+                CONF_REDUCE_API_CALLS: import_data.get(
+                    CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
+                ),
             },
         )
 
@@ -212,6 +217,9 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_NAME: name,
                         CONF_EXTPV: user_input.get(CONF_EXTPV, False),
                         CONF_ENERGY_GENERATED_SANITY: DEFAULT_ENERGY_GENERATED_SANITY,
+                        CONF_REDUCE_API_CALLS: user_input.get(
+                            CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
+                        ),
                     },
                 )
 
@@ -240,6 +248,9 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         ),
                         vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
                         vol.Optional(CONF_EXTPV, default=False): bool,
+                        vol.Optional(
+                            CONF_REDUCE_API_CALLS, default=DEFAULT_REDUCE_API_CALLS
+                        ): bool,
                     }
                 ),
                 suggested_values,
@@ -356,6 +367,15 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                             unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
                         )
                     ),
+                    vol.Optional(
+                        CONF_REDUCE_API_CALLS,
+                        default=current_options.get(
+                            CONF_REDUCE_API_CALLS,
+                            current_data.get(
+                                CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
+                            ),
+                        ),
+                    ): bool,
                     vol.Optional(
                         CONF_EXTPV,
                         default=current_options.get(

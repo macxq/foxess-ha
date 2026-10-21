@@ -264,3 +264,83 @@ def test_energy_solar_monotonic_ratchet_and_sanity():
         assert solar_entity.native_value == 0.5
 
 
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_raw_age_check_respects_reduce_api_calls(hass: HomeAssistant):
+    """Verify getRaw tolerates older samples (up to 661s) when reduce_api_calls is True."""
+    import time
+    import datetime
+    import json
+
+    now = time.time()
+    zulu = datetime.datetime.now().astimezone().strftime("%z")
+    sample_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 450)) + f" GMT{zulu}"
+
+    payload = {
+        "errno": 0,
+        "msg": "success",
+        "result": [
+            {
+                "time": sample_time,
+                "datas": [
+                    {"variable": "runningState", "value": "161"},
+                    {"variable": "generationPower", "value": 1.5},
+                ],
+            }
+        ],
+    }
+
+    mock_rest = MagicMock()
+    mock_rest.data = json.dumps(payload)
+    mock_rest.last_exception = None
+    mock_rest.async_update = AsyncMock()
+
+    all_data_standard = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
+    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        # In standard mode (max_age=361), age=450 exceeds threshold -> online becomes False
+        res = await sensor.getRaw(hass, all_data_standard, "api_key", "DEV_SN", reduce_api_calls=False)
+        assert res == sensor.FetchResult.OK
+        assert all_data_standard["online"] is False
+
+    all_data_reduced = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
+    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        # In reduced mode (max_age=661), age=450 is within threshold -> online remains True
+        res = await sensor.getRaw(hass, all_data_reduced, "api_key", "DEV_SN", reduce_api_calls=True)
+        assert res == sensor.FetchResult.OK
+        assert all_data_reduced["online"] is True
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_raw_missing_or_invalid_timestamp(hass: HomeAssistant):
+    """Verify getRaw handles missing or unparseable timestamps gracefully."""
+    import json
+
+    payload = {
+        "errno": 0,
+        "msg": "success",
+        "result": [
+            {
+                "time": "invalid_timestamp",
+                "datas": [
+                    {"variable": "runningState", "value": "161"},
+                ],
+            }
+        ],
+    }
+
+    mock_rest = MagicMock()
+    mock_rest.data = json.dumps(payload)
+    mock_rest.last_exception = None
+    mock_rest.async_update = AsyncMock()
+
+    all_data = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
+    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        res = await sensor.getRaw(hass, all_data, "api_key", "DEV_SN", reduce_api_calls=True)
+        assert res == sensor.FetchResult.OK
+        assert all_data["online"] is True
+
+
+
+
