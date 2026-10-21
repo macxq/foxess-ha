@@ -342,5 +342,141 @@ async def test_get_raw_missing_or_invalid_timestamp(hass: HomeAssistant):
         assert all_data["online"] is True
 
 
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_foxess_inverter_device_detail_timeout_no_key_error():
+    """Verify FoxESSInverter does not raise KeyError: 'deviceSN' when device detail timed out."""
+    coordinator = MagicMock()
+    # State when device detail times out or on initial startup
+    coordinator.data = {
+        "addressbook": {"hasBattery": False, "status": "3"},
+        "online": False,
+    }
+
+    inverter = sensor.FoxESSInverter(coordinator, "Fox Inverter", "DEV1")
+
+    # native_value must safely return "off-line" without raising KeyError or ValueError
+    assert inverter.native_value == "off-line"
+
+    # extra_state_attributes must return None safely instead of KeyError: 'deviceSN' (#378)
+    assert inverter.extra_state_attributes is None
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_foxess_inverter_empty_or_missing_status():
+    """Verify FoxESSInverter handles empty or non-numeric addressbook status gracefully."""
+    coordinator = MagicMock()
+    inverter = sensor.FoxESSInverter(coordinator, "Fox Inverter", "DEV1")
+
+    # Empty addressbook
+    coordinator.data = {"addressbook": {}, "online": False}
+    assert inverter.native_value is None
+    assert inverter.extra_state_attributes is None
+
+    # Invalid status
+    coordinator.data = {"addressbook": {"status": "not_an_int"}, "online": False}
+    assert inverter.native_value is None
+    assert inverter.extra_state_attributes is None
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_foxess_inverter_extra_state_attributes_with_device_detail():
+    """Verify FoxESSInverter extra_state_attributes populates safely when device detail is present."""
+    coordinator = MagicMock()
+    coordinator.data = {
+        "addressbook": {
+            sensor.ATTR_DEVICE_SN: "SN12345",
+            sensor.ATTR_PLANTNAME: "Home Solar",
+            sensor.ATTR_DEVICE_TYPE: "H1-3.7-E",
+        },
+        "online": True,
+    }
+
+    inverter = sensor.FoxESSInverter(coordinator, "Fox Inverter", "DEV1")
+    attrs = inverter.extra_state_attributes
+
+    assert attrs is not None
+    assert attrs[sensor.ATTR_DEVICE_SN] == "SN12345"
+    assert attrs[sensor.ATTR_PLANTNAME] == "Home Solar"
+    assert attrs[sensor.ATTR_DEVICE_TYPE] == "H1-3.7-E"
+    # Optional attributes missing from addressbook should be None, not KeyError
+    assert attrs[sensor.ATTR_MASTER] is None
+    assert attrs[sensor.ATTR_BATTERYLIST] is None
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_residual_energy_scaling_in_get_raw(hass: HomeAssistant):
+    """Verify ResidualEnergy handles all OpenAPI scaling cases (#297)."""
+    import json
+    import time
+    import datetime
+
+    cases = [
+        # (raw_value, raw_unit, expected_raw)
+        (1933.0, "0.01kWh", 19.33),  # Legacy OpenAPI reporting in hundredths of kWh
+        (23.5, "0.01kWh", 23.5),     # BMS 2.004 / KH10 reporting directly in kWh with 0.01kWh unit
+        (20.2, "kWh", 20.2),         # OpenAPI reporting directly in kWh
+        (20.2, "1.0kWh", 20.2),      # OpenAPI reporting with 1.0kWh unit
+        (235.0, "0.1kWh", 23.5),     # OpenAPI reporting with 0.1kWh unit
+    ]
+
+    for raw_val, raw_unit, expected_val in cases:
+        now = time.time()
+        zulu = datetime.datetime.now().astimezone().strftime("%z")
+        sample_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)) + f" GMT{zulu}"
+        payload = {
+            "errno": 0,
+            "msg": "success",
+            "result": [
+                {
+                    "time": sample_time,
+                    "datas": [
+                        {"variable": "ResidualEnergy", "value": raw_val, "unit": raw_unit},
+                    ],
+                }
+            ],
+        }
+
+        mock_rest = MagicMock()
+        mock_rest.data = json.dumps(payload)
+        mock_rest.last_exception = None
+        mock_rest.async_update = AsyncMock()
+
+        all_data = {"raw": {}, "addressbook": {"hasBattery": True}, "online": True}
+        with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+             patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+            res = await sensor.getRaw(hass, all_data, "api_key", "DEV_SN")
+            assert res == sensor.FetchResult.OK
+            assert all_data["raw"]["ResidualEnergy"] == pytest.approx(expected_val, 0.01), (
+                f"Failed for input value={raw_val}, unit={raw_unit}: expected {expected_val}, got {all_data['raw'].get('ResidualEnergy')}"
+            )
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_foxess_residual_energy_native_value():
+    """Verify FoxESSResidualEnergy entity native_value handles bounds correctly."""
+    coordinator = MagicMock()
+    entity = sensor.FoxESSResidualEnergy(coordinator, "Fox Inverter", "DEV1")
+
+    # Normal battery capacity
+    coordinator.data = {"online": True, "raw": {"ResidualEnergy": 23.5}}
+    assert entity.native_value == 23.5
+
+    # Large battery system (e.g. 55 kWh) - must not divide by 100
+    coordinator.data = {"online": True, "raw": {"ResidualEnergy": 55.0}}
+    assert entity.native_value == 55.0
+
+    # Raw value in 0.01kWh legacy (> 100)
+    coordinator.data = {"online": True, "raw": {"ResidualEnergy": 1933.0}}
+    assert entity.native_value == 19.33
+
+    # Zero or missing
+    coordinator.data = {"online": True, "raw": {"ResidualEnergy": 0.0}}
+    assert entity.native_value == 0.0
+
+    coordinator.data = {"online": True, "raw": {}}
+    assert entity.native_value is None
+
+
+
 
 

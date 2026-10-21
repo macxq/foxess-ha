@@ -1385,16 +1385,24 @@ async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False
                 elif variableName == "invBatPower_1":
                     variableName = "invBatPower"  # use entity for single battery systems
                 elif variableName == "ResidualEnergy":
-                    if item.get("unit") is not None:
-                        scale=item["unit"]
-                        if scale in ['1.0kWh', 'kWh', None]:
-                            variableValue = round((variableValue * 100),2)
-                            _LOGGER.debug("OA Variables ResidualEnergy Scale: *100 %s", scale)
-                        elif scale=="0.1kWh":
-                            variableValue = round((variableValue * 10),2)
-                            _LOGGER.debug("OA Variables ResidualEnergy Scale: *10 %s", scale)
+                    # OpenAPI may return:
+                    # - hundredths of kWh with unit '0.01kWh' (e.g. 1933.0 for 19.33 kWh) -> divide by 100
+                    # - tenths of kWh with unit '0.1kWh' (e.g. 235.0 for 23.5 kWh) -> divide by 10
+                    # - directly in kWh with unit '0.01kWh', 'kWh', '1.0kWh', or None (e.g. 20.2 or 23.5)
+                    if variableValue is not None:
+                        scale = item.get("unit")
+                        if scale == "0.1kWh":
+                            if variableValue > 100.0:
+                                variableValue = round(variableValue / 10.0, 2)
+                                _LOGGER.debug("OA Variables ResidualEnergy Scale (0.1kWh): /10 to %s", variableValue)
+                            else:
+                                variableValue = round(float(variableValue), 2)
+                        elif variableValue > 100.0:
+                            variableValue = round(variableValue / 100.0, 2)
+                            _LOGGER.debug("OA Variables ResidualEnergy Scale (>100): /100 to %s", variableValue)
                         else:
-                            _LOGGER.debug("OA Variables ResidualEnergy Scale: %s", scale)
+                            variableValue = round(float(variableValue), 2)
+                            _LOGGER.debug("OA Variables ResidualEnergy: %s (scale: %s)", variableValue, scale)
 
                 allData["raw"][variableName] = variableValue
                 _LOGGER.debug(
@@ -2061,36 +2069,43 @@ class FoxESSInverter(FoxESSEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"] or (
-            self.coordinator.data["online"] == False
-            and int(self.coordinator.data["addressbook"]["status"]) in [1, 2, 3]
-        ):
-            if "status" not in self.coordinator.data["addressbook"]:
-                _LOGGER.debug("addressbook status None")
+        data = self.coordinator.data or {}
+        addressbook = data.get("addressbook", {}) if isinstance(data, dict) else {}
+        status = addressbook.get("status")
+        try:
+            status_int = int(status) if status is not None else None
+        except (ValueError, TypeError):
+            status_int = None
+
+        is_online = bool(data.get("online", False))
+
+        if is_online or (not is_online and status_int in [1, 2, 3]):
+            if status_int == 1:
+                return "on-line"
+            elif status_int == 2:
+                return "in-alarm"
+            elif status_int == 3:
+                return "off-line"
             else:
-                if int(self.coordinator.data["addressbook"]["status"]) == 1:
-                    return "on-line"
-                else:
-                    if int(self.coordinator.data["addressbook"]["status"]) == 2:
-                        return "in-alarm"
-                    else:
-                        return "off-line"
+                _LOGGER.debug("addressbook status None or unknown: %s", status)
         return None
 
     @property
     def extra_state_attributes(self):
-        if "status" not in self.coordinator.data["addressbook"]:
-            _LOGGER.debug("addressbook status attributes None")
+        data = self.coordinator.data or {}
+        addressbook = data.get("addressbook", {}) if isinstance(data, dict) else {}
+        if not addressbook or ATTR_DEVICE_SN not in addressbook:
+            _LOGGER.debug("addressbook device detail not yet available")
             return None
         return {
-            ATTR_DEVICE_SN: self.coordinator.data["addressbook"][ATTR_DEVICE_SN],
-            ATTR_PLANTNAME: self.coordinator.data["addressbook"][ATTR_PLANTNAME],
-            ATTR_MODULESN: self.coordinator.data["addressbook"][ATTR_MODULESN],
-            ATTR_DEVICE_TYPE: self.coordinator.data["addressbook"][ATTR_DEVICE_TYPE],
-            ATTR_MASTER: self.coordinator.data["addressbook"][ATTR_MASTER],
-            ATTR_MANAGER: self.coordinator.data["addressbook"][ATTR_MANAGER],
-            ATTR_SLAVE: self.coordinator.data["addressbook"][ATTR_SLAVE],
-            ATTR_BATTERYLIST: self.coordinator.data["addressbook"][ATTR_BATTERYLIST],
+            ATTR_DEVICE_SN: addressbook.get(ATTR_DEVICE_SN),
+            ATTR_PLANTNAME: addressbook.get(ATTR_PLANTNAME),
+            ATTR_MODULESN: addressbook.get(ATTR_MODULESN),
+            ATTR_DEVICE_TYPE: addressbook.get(ATTR_DEVICE_TYPE),
+            ATTR_MASTER: addressbook.get(ATTR_MASTER),
+            ATTR_MANAGER: addressbook.get(ATTR_MANAGER),
+            ATTR_SLAVE: addressbook.get(ATTR_SLAVE),
+            ATTR_BATTERYLIST: addressbook.get(ATTR_BATTERYLIST),
             ATTR_LASTCLOUDSYNC: datetime.now(),
         }
 
@@ -2433,17 +2448,24 @@ class FoxESSResidualEnergy(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
-            if "ResidualEnergy" not in self.coordinator.data["raw"]:
+        data = self.coordinator.data or {}
+        if data.get("online") and data.get("raw"):
+            raw = data["raw"]
+            if "ResidualEnergy" not in raw:
                 _LOGGER.debug("ResidualEnergy None")
-            else:
-                re = self.coordinator.data["raw"]["ResidualEnergy"]
-                if re > 0:
-                    if re > 50: # if openAPI scale is invalid (bug)
-                        re = re / 100
-                else:
-                    re = 0
-                return re
+                return None
+            re = raw["ResidualEnergy"]
+            if re is None:
+                return None
+            try:
+                re_float = float(re)
+            except (ValueError, TypeError):
+                return None
+            if re_float > 100.0:
+                re_float = re_float / 100.0
+            elif re_float < 0:
+                re_float = 0.0
+            return round(re_float, 2)
         return None
 
 
