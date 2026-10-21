@@ -45,6 +45,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util.ssl import SSLCipherList
 from homeassistant.helpers.icon import icon_for_battery_level
+from homeassistant.util import dt as dt_util
 import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,6 +86,8 @@ CONF_XTZONE = "xtZone"
 CONF_GET_VARIABLES = "Restrict"
 CONF_V1_API = "Use_V1_Api"
 CONF_EVO = "Evo"
+CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
+DEFAULT_ENERGY_GENERATED_SANITY = 100.0
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 _AUTH_ERRNO = {40256, 41808, 41809}  # Invalid/empty API key per FoxESS OpenAPI docs
@@ -126,6 +129,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_GET_VARIABLES): cv.boolean,
         vol.Optional(CONF_V1_API): cv.boolean,
         vol.Optional(CONF_EVO): cv.boolean,
+        vol.Optional(
+            CONF_ENERGY_GENERATED_SANITY, default=DEFAULT_ENERGY_GENERATED_SANITY
+        ): cv.positive_float,
     }
 )
 
@@ -197,6 +203,10 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
     RestrictGetVar = config.get(CONF_GET_VARIABLES)
     V1_Api = config.get(CONF_V1_API)
     Evo = config.get(CONF_EVO)
+    energyGeneratedSanityCheck = float(
+        config.get(CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY)
+        or DEFAULT_ENERGY_GENERATED_SANITY
+    )
     _LOGGER.debug("API Key: %s", f"...{apiKey[-4:]}" if apiKey else "(unset)")
     _LOGGER.debug("Device SN: %s", devicesn)
     _LOGGER.debug("Device ID: %s", deviceID)
@@ -206,6 +216,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
     _LOGGER.debug("Extended PV: %s", ExtPV)
     _LOGGER.debug("v1 Api Calls: %s", V1_Api)
     _LOGGER.debug("EVO: %s", Evo)
+    _LOGGER.debug("Energy Sanity Check: %s kWh", energyGeneratedSanityCheck)
     if V1_Api is not False:
         V1_Api = True
         _LOGGER.debug("v1 Api Calls Enabled")
@@ -522,7 +533,12 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
             FoxESSBatMinSoConGrid(coordinator, name, deviceID),
             FoxESSSolarPower(coordinator, name, deviceID),
             FoxESSEnergyThroughput(coordinator, name, deviceID),
-            FoxESSEnergySolar(coordinator, name, deviceID),
+            FoxESSEnergySolar(
+                coordinator,
+                name,
+                deviceID,
+                max_value=energyGeneratedSanityCheck,
+            ),
             FoxESSInverter(coordinator, name, deviceID),
             FoxESSPowerString(
                 coordinator,
@@ -574,6 +590,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                 "Energy Generated",
                 "energy-generated",
                 "value",
+                max_value=energyGeneratedSanityCheck,
             ),
             FoxESSEnergyGenerated(
                 coordinator,
@@ -1653,11 +1670,21 @@ class FoxESSEnergyGenerated(FoxESSEntity):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
-    def __init__(self, coordinator, name, deviceID, nameValue, uniqueValue, keyValue):
+    def __init__(
+        self,
+        coordinator,
+        name,
+        deviceID,
+        nameValue,
+        uniqueValue,
+        keyValue,
+        max_value=None,
+    ):
         super().__init__(coordinator=coordinator)
         self._nameValue = nameValue
         self._uniqueValue = uniqueValue
         self._keyValue = keyValue
+        self._max_value = max_value
         _LOGGER.debug("Initiating Entity - %s", self._nameValue)
         self._attr_name = f"{name} - {self._nameValue}"
         self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
@@ -1684,6 +1711,20 @@ class FoxESSEnergyGenerated(FoxESSEntity):
                     energygenerated = round(energygenerated, 3)
                 else:
                     energygenerated = 0
+
+            if (
+                self._max_value is not None
+                and energygenerated is not None
+                and energygenerated > self._max_value
+            ):
+                _LOGGER.warning(
+                    "%s value %s exceeds sanity check threshold %s kWh, ignoring",
+                    self._nameValue,
+                    energygenerated,
+                    self._max_value,
+                )
+                return None
+
             return energygenerated
         return None
 
@@ -2092,11 +2133,14 @@ class FoxESSEnergySolar(FoxESSEntity):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
-    def __init__(self, coordinator, name, deviceID):
+    def __init__(self, coordinator, name, deviceID, max_value=None):
         super().__init__(coordinator=coordinator)
         _LOGGER.debug("Initiating Entity - Solar")
         self._attr_name = name + " - Solar"
         self._attr_unique_id = deviceID + "solar"
+        self._max_value = max_value
+        self._last_day = None
+        self._max_today = 0.0
         self.status = namedtuple(
             "status",
             [
@@ -2107,6 +2151,11 @@ class FoxESSEnergySolar(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
+        today = dt_util.now().date()
+        if self._last_day != today:
+            self._last_day = today
+            self._max_today = 0.0
+
         if "loads" not in self.coordinator.data["report"]:
             loads = 0
         else:
@@ -2135,7 +2184,22 @@ class FoxESSEnergySolar(FoxESSEntity):
         energysolar = round((loads + charge + feedIn - gridConsumption - discharge), 3)
         if energysolar < 0:
             energysolar = 0
-        return round(energysolar, 3)
+
+        # Sanity check: ignore spikes exceeding max_value
+        if self._max_value is not None and energysolar > self._max_value:
+            _LOGGER.warning(
+                "%s value %s exceeds sanity check threshold %s kWh, ignoring",
+                self._attr_name,
+                energysolar,
+                self._max_value,
+            )
+            return round(self._max_today, 3) if self._max_today > 0 else None
+
+        # Monotonic ratchet: prevent evening drops from creating negative stats deltas
+        if energysolar > self._max_today:
+            self._max_today = energysolar
+
+        return round(self._max_today, 3)
 
 
 class FoxESSSolarPower(FoxESSEntity):

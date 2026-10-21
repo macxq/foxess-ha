@@ -186,6 +186,7 @@ async def test_create_entry(
         "deviceID": STEP2_INPUT["deviceSN"],
         CONF_NAME: STEP2_INPUT[CONF_NAME],
         "extendPV": False,
+        "energyGeneratedSanityCheck": 100.0,
     }
     assert result["result"].unique_id == STEP2_INPUT["deviceSN"]
     mock_setup_entry.assert_called_once()
@@ -631,6 +632,7 @@ async def test_options_flow_success(
 
     new_options = {
         "apiKey": "new-api-key",
+        "energyGeneratedSanityCheck": 100.0,
         "extendPV": True,
         "Evo": True,
         "xtZone": True,
@@ -717,6 +719,7 @@ async def test_async_step_import_success(
     assert result["data"]["name"] == "YAML Inverter"
     assert result["data"]["extendPV"] is True
     assert result["data"]["Evo"] is True
+    assert result["data"]["energyGeneratedSanityCheck"] == 100.0
     mock_notify.assert_called_once()
 
 
@@ -740,3 +743,41 @@ async def test_async_step_import_already_configured(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_energy_sanity_check(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Options flow allows configuring the energyGeneratedSanityCheck parameter."""
+    from custom_components.foxess.sensor import CONF_ENERGY_GENERATED_SANITY
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MOCK_CONFIG["deviceSN"],
+        data=MOCK_CONFIG,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    new_options = {
+        "apiKey": "new-api-key",
+        CONF_ENERGY_GENERATED_SANITY: 150.0,
+        "extendPV": False,
+        "Evo": False,
+        "xtZone": False,
+        "Restrict": False,
+    }
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            new_options,
+        )
+
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_ENERGY_GENERATED_SANITY] == 150.0
+

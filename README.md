@@ -42,15 +42,33 @@ Copy the content of this integrations `custom_components/foxess` folder into you
 
 ### ⚙️ Options Flow (Integration Settings)
 
-You can adjust settings for each configured inverter without restarting Home Assistant:
+You can adjust settings for each configured inverter at any time without restarting Home Assistant:
 1. Go to **Settings** ➔ **Devices & services** ➔ **FoxESS**.
 2. Click **Configure** on the inverter entry card:
+   - **Assigned Inverter:** Displays the serial number (`deviceSN`) for this device (read-only).
    - **API Key:** Update or change your FoxESS API key.
-   - **Inverter SN:** Displays the assigned serial number for this device (read-only).
-   - **extendPV:** Enable for Fox R series or inverters supporting more than 6 PV strings (attempts to read PV strings 7–18).
-   - **Evo:** Enable support for FoxESS Evo series inverters.
-   - **xtZone:** Adjust time zone behavior if required for your inverter's reporting region.
-   - **Restrict:** Restrict API polling frequency to conserve daily API quotas.
+   - **Daily energy sanity check threshold (kWh) (`energyGeneratedSanityCheck`):** Maximum expected daily energy generation in kWh (default: `100.0` kWh). Readings above this threshold are ignored to protect Energy Dashboard statistics from corrupted spikes (e.g. when FoxESS Cloud erroneously reports lifetime yield instead of daily yield).
+   - **Extended PV strings (`extendPV`):** Enable for Fox R series or inverters supporting more than 6 PV strings (reads PV strings 7–18).
+   - **FoxESS EVO series mode (`Evo`):** Enable if using a FoxESS EVO series inverter where device details are incomplete.
+   - **Cross Time Zone adjustment (`xtZone`):** Enable if inverter timestamps use a different time zone than Home Assistant.
+   - **Restrict API variables (`Restrict`):** Restrict variable queries to essential telemetry if Fox Cloud returns errors for large variable lists.
+
+---
+
+### 📋 Configuration Parameters Reference
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `apiKey` | string | *Required* | FoxESS OpenAPI token generated in the FoxESS Developer Portal. |
+| `deviceSN` | string | *Required* | Inverter serial number from Foxess Cloud. |
+| `deviceID` | string | `deviceSN` | Inverter ID. Reuses `deviceSN` for all modern setups. Preserves legacy UUID on older setups. |
+| `name` | string | `"FoxESS"` | Friendly name prefix for inverter entities and device title. |
+| `energyGeneratedSanityCheck` | float | `100.0` | Daily generation ceiling (kWh). Spikes exceeding this value are rejected to safeguard Energy Dashboard statistics. |
+| `extendPV` | boolean | `false` | Enable to read additional PV strings 7–18 for inverters with >6 strings. |
+| `Evo` | boolean | `false` | Enable support for FoxESS EVO series inverters. |
+| `xtZone` | boolean | `false` | Adjust time zone offset if inverter timestamps differ from HA local time. |
+| `Restrict` | boolean | `false` | Limit API variable queries to prevent timeout/payload issues on certain inverters. |
+| `Use_V1_Api` | boolean | `true` | Use OpenAPI v1 endpoints (`/op/v1/device/...`) for real-time telemetry. |
 
 ---
 
