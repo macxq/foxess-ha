@@ -136,3 +136,10 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Local Home Assistant test instances
+config/
+test_config/
+*.db
+*.db-shm
+*.db-wal
