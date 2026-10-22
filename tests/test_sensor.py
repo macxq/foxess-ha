@@ -477,6 +477,147 @@ def test_foxess_residual_energy_native_value():
     assert entity.native_value is None
 
 
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_report_daily_generation_preserves_previous_values_when_fields_missing(hass: HomeAssistant):
+    """Verify missing today/month/cumulative fields do not overwrite with 0 (#324)."""
+    import json
+
+    # Pre-existing values
+    all_data = {
+        "reportDailyGeneration": {
+            "value": 15.5,
+            "month": 120.0,
+            "cumulative": 3500.0,
+        }
+    }
+
+    # API response missing "today"
+    payload = {
+        "errno": 0,
+        "msg": "success",
+        "result": {
+            "month": 125.0,
+            "cumulative": 3505.0,
+        },
+    }
+
+    mock_rest = MagicMock()
+    mock_rest.data = json.dumps(payload)
+    mock_rest.async_update = AsyncMock()
+
+    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        res = await sensor.getReportDailyGeneration(hass, all_data, "key", "DEV_SN")
+        assert res == sensor.FetchResult.OK
+        # "value" must retain 15.5 instead of being reset to 0
+        assert all_data["reportDailyGeneration"]["value"] == 15.5
+        assert all_data["reportDailyGeneration"]["month"] == 125.0
+        assert all_data["reportDailyGeneration"]["cumulative"] == 3505.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_report_daily_generation_auth_failed(hass: HomeAssistant):
+    """Verify authentication errors return FetchResult.AUTH_FAILED."""
+    import json
+
+    payload = {
+        "errno": 41808,
+        "msg": "token invalid",
+    }
+
+    mock_rest = MagicMock()
+    mock_rest.data = json.dumps(payload)
+    mock_rest.async_update = AsyncMock()
+
+    all_data = {"reportDailyGeneration": {}}
+    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        res = await sensor.getReportDailyGeneration(hass, all_data, "key", "DEV_SN")
+        assert res == sensor.FetchResult.AUTH_FAILED
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_daily_generation_timer_and_resilience(hass: HomeAssistant):
+    """Verify daily generation runs on independent 15-min timer and retries in 5 min on failure (#324)."""
+    config = {
+        sensor.CONF_NAME: "Test Inverter",
+        sensor.CONF_DEVICEID: "DEV_TEST",
+        sensor.CONF_DEVICESN: "SN_TEST_DAILY",
+        sensor.CONF_APIKEY: "key_test",
+    }
+    mock_add = MagicMock()
+    with patch("custom_components.foxess.sensor.DataUpdateCoordinator.async_refresh", new_callable=AsyncMock):
+        await sensor._async_setup_foxess(hass, config, mock_add)
+
+    coordinator = mock_add.call_args[0][0][0].coordinator
+    update_data = coordinator.update_method
+
+    with patch("custom_components.foxess.sensor.getOADeviceDetail", return_value=sensor.FetchResult.OK) as mock_detail, \
+         patch("custom_components.foxess.sensor.getRaw", return_value=sensor.FetchResult.OK) as mock_raw, \
+         patch("custom_components.foxess.sensor.getReport", return_value=sensor.FetchResult.OK) as mock_report, \
+         patch("custom_components.foxess.sensor.getReportDailyGeneration", return_value=sensor.FetchResult.ERROR) as mock_gen, \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+
+        def side_effect_detail(h, allData, sn, key):
+            allData["addressbook"]["status"] = "1"
+            return sensor.FetchResult.OK
+        mock_detail.side_effect = side_effect_detail
+
+        # First run (startup, t=0): daily gen runs, fails with FetchResult.ERROR
+        # But online must remain True (never pull down inverter online status)
+        data = await update_data()
+        assert mock_gen.call_count == 1
+        assert data["online"] is True
+
+        # Minutes 1, 2, 3, 4: daily gen should NOT run (retry after 5 min)
+        for _ in range(4):
+            await update_data()
+        assert mock_gen.call_count == 1
+
+        # Minute 5: retry should trigger
+        mock_gen.return_value = sensor.FetchResult.OK
+        await update_data()
+        assert mock_gen.call_count == 2
+
+        # After success, next run is in 15 minutes (so not called for next 14 ticks)
+        for _ in range(14):
+            await update_data()
+        assert mock_gen.call_count == 2
+
+        # 15th tick after success: triggers again!
+        await update_data()
+        assert mock_gen.call_count == 3
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_daily_generation_not_blocked_by_raw_or_report_failure(hass: HomeAssistant):
+    """Verify daily generation is fetched even if getRaw or getReport fails (#324)."""
+    config = {
+        sensor.CONF_NAME: "Test Inverter",
+        sensor.CONF_DEVICEID: "DEV_TEST2",
+        sensor.CONF_DEVICESN: "SN_TEST_DAILY2",
+        sensor.CONF_APIKEY: "key_test",
+    }
+    mock_add = MagicMock()
+    with patch("custom_components.foxess.sensor.DataUpdateCoordinator.async_refresh", new_callable=AsyncMock):
+        await sensor._async_setup_foxess(hass, config, mock_add)
+
+    coordinator = mock_add.call_args[0][0][0].coordinator
+    update_data = coordinator.update_method
+
+    with patch("custom_components.foxess.sensor.getOADeviceDetail", return_value=sensor.FetchResult.OK) as mock_detail, \
+         patch("custom_components.foxess.sensor.getRaw", return_value=sensor.FetchResult.ERROR) as mock_raw, \
+         patch("custom_components.foxess.sensor.getReportDailyGeneration", return_value=sensor.FetchResult.OK) as mock_gen, \
+         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+
+        def side_effect_detail(h, allData, sn, key):
+            allData["addressbook"]["status"] = "1"
+            return sensor.FetchResult.OK
+        mock_detail.side_effect = side_effect_detail
+
+        await update_data()
+        # Even though getRaw failed, daily generation must have been called
+        assert mock_gen.call_count == 1
 
 
 
