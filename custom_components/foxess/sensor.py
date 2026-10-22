@@ -245,6 +245,9 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
     timeslice[devicesn] = RETRY_NEXT_SLOT
     last_api = 0
     LastHour = 0
+    daily_gen_interval = 60 if reduce_api_calls else 15
+    daily_gen_retry_interval = 10 if reduce_api_calls else 5
+    daily_gen_timer = 0
     allData = {
         "report": {},
         "reportDailyGeneration": {},
@@ -268,6 +271,45 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         detail_due = (tslice % 30 == 0) if reduce_api_calls else (tslice % 15 == 0)
         report_due = (tslice == 0) if reduce_api_calls else (tslice % 15 == 0)
         retry_slot = RETRY_IN_10_MINS if reduce_api_calls else RETRY_IN_5_MINS
+
+        # Independent timer for daily generation report (#324)
+        nonlocal daily_gen_timer
+        daily_gen_timer -= 1
+        if daily_gen_timer <= 0:
+            _LOGGER.debug(
+                "Fetching OA Daily Generation Report on independent schedule for SN: %s",
+                devicesn,
+            )
+            try:
+                gen_error = await getReportDailyGeneration(
+                    hass, allData, apiKey, devicesn
+                )
+                if gen_error is FetchResult.AUTH_FAILED:
+                    if config_entry is not None:
+                        raise ConfigEntryAuthFailed("FoxESS API key rejected")
+                    _LOGGER.error(
+                        "FoxESS API authentication failed in daily generation. "
+                        "Update your apiKey in configuration.yaml and restart."
+                    )
+                elif gen_error:
+                    _LOGGER.debug(
+                        "getReportDailyGeneration failed for SN %s, retry in %s minutes",
+                        devicesn,
+                        daily_gen_retry_interval,
+                    )
+                    daily_gen_timer = daily_gen_retry_interval
+                else:
+                    daily_gen_timer = daily_gen_interval
+            except ConfigEntryAuthFailed:
+                raise
+            except Exception as err:
+                _LOGGER.warning(
+                    "Unexpected error fetching daily generation for SN %s: %s, retry in %s minutes",
+                    devicesn,
+                    err,
+                    daily_gen_retry_interval,
+                )
+                daily_gen_timer = daily_gen_retry_interval
 
         if main_poll_due:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
@@ -319,16 +361,8 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                         if report_due:  # do at startup and periodically (every 15m or 60m)
                             await asyncio.sleep(1)  # OpenAPI demand limit
                             geterror = await getReport(hass, allData, apiKey, devicesn)
-                            if not geterror:
-                                if tslice == 0:
-                                    # get daily generation at startup, then every 60 minutes
-                                    await asyncio.sleep(1)  # OpenAPI demand
-                                    geterror = await getReportDailyGeneration(hass, allData, apiKey, devicesn)
-                                    if geterror:
-                                        _LOGGER.debug("getReportDailyGeneration False")
-                            else:
-                                _LOGGER.debug("getReport False")
                             if geterror:
+                                _LOGGER.debug("getReport False")
                                 geterror = FetchResult.OK
                                 allData["online"] = False
                                 tslice = retry_slot  # retry in 5 or 10 minutes
@@ -1170,47 +1204,60 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
         return FetchResult.ERROR
     else:
         response = json.loads(restOAgen.data)
-        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
+        if response.get("errno") == 0 and (
+            response.get("msg") == "success"
+            or response.get("msg") == "Operation successful"
+        ):
             _LOGGER.debug(
                 "OA Daily Generation Report Data fetched OK Response: %s",
                 restOAgen.data[:500],
             )
 
-            parsed = json.loads(restOAgen.data)["result"]
-            if "today" not in parsed:
-                allData["reportDailyGeneration"]["value"] = 0
+            result_data = response.get("result")
+            if not isinstance(result_data, dict):
                 _LOGGER.debug(
-                    "OA Daily Generation Report data, today has no value: %s set to 0",
-                    parsed,
+                    "OA Daily Generation Report result is not a dict: %s", result_data
                 )
-            else:
+                return FetchResult.ERROR
+
+            parsed = result_data
+            if "today" in parsed and parsed["today"] is not None:
                 allData["reportDailyGeneration"]["value"] = parsed["today"]
                 _LOGGER.debug(
                     "OA Daily Generation Report data: todays value %s ", parsed["today"]
                 )
-            if "month" not in parsed:
-                allData["reportDailyGeneration"]["month"] = 0
-                _LOGGER.debug(
-                    "OA Daily Generation Report data, month has no value: %s set to 0",
-                    parsed,
-                )
             else:
+                _LOGGER.debug(
+                    "OA Daily Generation Report data, today has no value in %s, retaining previous: %s",
+                    parsed,
+                    allData["reportDailyGeneration"].get("value"),
+                )
+
+            if "month" in parsed and parsed["month"] is not None:
                 allData["reportDailyGeneration"]["month"] = parsed["month"]
                 _LOGGER.debug(
                     "OA Daily Generation Report data: month value %s ", parsed["month"]
                 )
-            if "cumulative" not in parsed:
-                allData["reportDailyGeneration"]["cumulative"] = 0
-                _LOGGER.debug(
-                    "OA Daily Generation Report data, cumulative has no value: %s set to 0",
-                    parsed,
-                )
             else:
+                _LOGGER.debug(
+                    "OA Daily Generation Report data, month has no value in %s, retaining previous: %s",
+                    parsed,
+                    allData["reportDailyGeneration"].get("month"),
+                )
+
+            if "cumulative" in parsed and parsed["cumulative"] is not None:
                 allData["reportDailyGeneration"]["cumulative"] = parsed["cumulative"]
                 _LOGGER.debug(
                     "OA Daily Generation Report data: cumulative value %s ",
                     parsed["cumulative"],
                 )
+            else:
+                _LOGGER.debug(
+                    "OA Daily Generation Report data, cumulative has no value in %s, retaining previous: %s",
+                    parsed,
+                    allData["reportDailyGeneration"].get("cumulative"),
+                )
+
             return FetchResult.OK
         else:
             _LOGGER.debug(
@@ -1218,7 +1265,11 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
                 response,
                 restOAgen.data,
             )
-            return FetchResult.ERROR
+            return (
+                FetchResult.AUTH_FAILED
+                if response.get("errno") in _AUTH_ERRNO
+                else FetchResult.ERROR
+            )
 
 
 async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False):
@@ -1727,35 +1778,36 @@ class FoxESSEnergyGenerated(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self._keyValue not in self.coordinator.data["reportDailyGeneration"]:
+        if self._keyValue not in self.coordinator.data.get("reportDailyGeneration", {}):
             _LOGGER.debug("%s None", self._keyValue)
+            return None
+
+        val = self.coordinator.data["reportDailyGeneration"][self._keyValue]
+        if val is None:
+            return None
+
+        if val == 0:
+            energygenerated = 0
         else:
-            if self.coordinator.data["reportDailyGeneration"][self._keyValue] == 0:
-                energygenerated = 0
+            if val > 0:
+                energygenerated = round(val, 3)
             else:
-                energygenerated = self.coordinator.data["reportDailyGeneration"][
-                    self._keyValue
-                ]
-                if energygenerated > 0:
-                    energygenerated = round(energygenerated, 3)
-                else:
-                    energygenerated = 0
+                energygenerated = 0
 
-            if (
-                self._max_value is not None
-                and energygenerated is not None
-                and energygenerated > self._max_value
-            ):
-                _LOGGER.warning(
-                    "%s value %s exceeds sanity check threshold %s kWh, ignoring",
-                    self._nameValue,
-                    energygenerated,
-                    self._max_value,
-                )
-                return None
+        if (
+            self._max_value is not None
+            and energygenerated is not None
+            and energygenerated > self._max_value
+        ):
+            _LOGGER.warning(
+                "%s value %s exceeds sanity check threshold %s kWh, ignoring",
+                self._nameValue,
+                energygenerated,
+                self._max_value,
+            )
+            return None
 
-            return energygenerated
-        return None
+        return energygenerated
 
 
 class FoxESSEnergyThroughput(FoxESSEntity):
