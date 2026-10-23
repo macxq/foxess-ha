@@ -17,6 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     _AUTH_ERRNO,
     _ENDPOINT_OA_BATTERY_SETTINGS,
+    _ENDPOINT_OA_BATTERY_SOC_SET,
     _ENDPOINT_OA_DAILY_GENERATION,
     _ENDPOINT_OA_DEVICE_DETAIL,
     _ENDPOINT_OA_DEVICE_DETAIL_V1,
@@ -25,6 +26,12 @@ from .const import (
     _ENDPOINT_OA_DEVICE_VARIABLES_V1,
     _ENDPOINT_OA_DOMAIN,
     _ENDPOINT_OA_REPORT,
+    _ENDPOINT_OA_SCHEDULER_ENABLE,
+    _ENDPOINT_OA_SCHEDULER_FLAG_GET,
+    _ENDPOINT_OA_SCHEDULER_FLAG_SET,
+    _ENDPOINT_OA_SCHEDULER_GET,
+    _ENDPOINT_OA_SETTING_GET,
+    _ENDPOINT_OA_SETTING_SET,
     DEFAULT_TIMEOUT,
     FetchResult,
 )
@@ -247,3 +254,86 @@ class FoxESSApiClient:
         if variables:
             json_data["variables"] = variables
         return await self.async_request("POST", path, token, json_data=json_data)
+
+    async def async_set_battery_soc(
+        self, sn: str, token: str, min_soc: int, min_soc_on_grid: int
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Set battery Min SoC and Min SoC on Grid."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_BATTERY_SOC_SET,
+            token,
+            json_data={"sn": sn, "minSoc": min_soc, "minSocOnGrid": min_soc_on_grid},
+        )
+
+    async def async_get_battery_soc(
+        self, sn: str, token: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Fetch battery SoC and minSoc settings."""
+        return await self.async_get_battery_settings(sn, token)
+
+    async def async_set_work_mode(
+        self, sn: str, token: str, mode: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Set inverter work mode."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SETTING_SET,
+            token,
+            json_data={"sn": sn, "key": "WorkMode", "value": mode},
+        )
+
+    async def async_get_work_mode(
+        self, sn: str, token: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Get inverter work mode."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SETTING_GET,
+            token,
+            json_data={"sn": sn, "key": "WorkMode"},
+        )
+
+    async def async_set_scheduler_flag(
+        self, sn: str, token: str, enabled: bool
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Enable or disable the mode scheduler."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SCHEDULER_FLAG_SET,
+            token,
+            json_data={"deviceSN": sn, "enable": 1 if enabled else 0},
+        )
+
+    async def async_get_scheduler_flag(
+        self, sn: str, token: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Get the mode scheduler flag status."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SCHEDULER_FLAG_GET,
+            token,
+            json_data={"deviceSN": sn},
+        )
+
+    async def async_set_scheduler_groups(
+        self, sn: str, token: str, groups: list[dict[str, Any]], is_default: bool = False
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Set mode scheduler time groups."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SCHEDULER_ENABLE,
+            token,
+            json_data={"deviceSN": sn, "isDefault": is_default, "groups": groups},
+        )
+
+    async def async_get_scheduler_groups(
+        self, sn: str, token: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Get configured mode scheduler groups."""
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_SCHEDULER_GET,
+            token,
+            json_data={"deviceSN": sn},
+        )
