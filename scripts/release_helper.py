@@ -15,20 +15,32 @@ import subprocess
 import sys
 
 
-def parse_yaml_block(yaml_text: str) -> dict[str, str]:
-    """Parse a simple key-value YAML block without third-party dependencies."""
+def parse_yaml_block(yaml_text: str, start_line: int = 1, file_path: str = "RELEASES.md") -> dict[str, str]:
+    """Parse a simple key-value YAML block with syntax validation and line reporting."""
     data: dict[str, str] = {}
-    for line in yaml_text.strip().splitlines():
-        line = line.strip()
+    for idx, raw_line in enumerate(yaml_text.splitlines()):
+        line_no = start_line + idx
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         if ":" not in line:
-            continue
+            raise ValueError(
+                f"YAML syntax error in {file_path} at line {line_no}: missing ':' in '{line}'"
+            )
         key, val = line.split(":", 1)
         key = key.strip()
         val = val.strip()
-        # Strip surrounding quotes if present
-        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+        if not key:
+            raise ValueError(
+                f"YAML syntax error in {file_path} at line {line_no}: missing key before ':'"
+            )
+        # Strip surrounding quotes if present and verify matching quotes
+        if val.startswith('"') or val.startswith("'"):
+            quote_char = val[0]
+            if len(val) < 2 or not val.endswith(quote_char):
+                raise ValueError(
+                    f"YAML syntax error in {file_path} at line {line_no}: unmatched quote in '{val}'"
+                )
             val = val[1:-1]
         data[key] = val
     return data
@@ -42,8 +54,10 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
 
     content = path.read_text(encoding="utf-8")
 
-    # Match release sections: ## [v0.56] or ## v0.56
-    heading_pattern = re.compile(r"^##\s+\[?(v\d+\.\d+)\]?", re.MULTILINE)
+    # Match release sections: ## [v0.56], ## [v0.56.1], ## v0.56, etc.
+    heading_pattern = re.compile(
+        r"^##\s+\[?(v\d+(?:\.\d+)+(?:-[0-9A-Za-z.-]+)?)\]?\s*$", re.MULTILINE
+    )
     matches = list(heading_pattern.finditer(content))
     if not matches:
         raise ValueError(f"No release headings (e.g. '## [v0.56]') found in {path}")
@@ -64,8 +78,12 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
             f"Release section for {version} in {path} is missing required ```yaml metadata block."
         )
 
-    metadata = parse_yaml_block(yaml_match.group(1))
-    if "title" not in metadata:
+    # Calculate 1-indexed line number in original file for YAML content
+    yaml_start_in_file = content.find(section_text) + yaml_match.start(1)
+    yaml_start_line = content[:yaml_start_in_file].count("\n") + 1
+
+    metadata = parse_yaml_block(yaml_match.group(1), start_line=yaml_start_line, file_path=str(path))
+    if not metadata.get("title", "").strip():
         raise ValueError(
             f"Release section for {version} in {path} is missing required 'title' in YAML metadata."
         )
@@ -143,8 +161,8 @@ def get_git_tags() -> list[str]:
     try:
         output = subprocess.check_output(["git", "tag", "-l"], text=True)
         return [tag.strip() for tag in output.splitlines() if tag.strip()]
-    except Exception:
-        return []
+    except Exception as err:
+        raise RuntimeError(f"Failed to retrieve git tags: {err}") from err
 
 
 def main() -> int:

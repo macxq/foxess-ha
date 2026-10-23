@@ -162,3 +162,55 @@ def test_extract_latest_json(tmp_path: Path):
     assert data["version"] == "v0.56"
     assert "Native aiohttp" in data["title"]
     assert "• Native aiohttp Session" in data["body"]
+
+
+def test_parse_releases_yaml_syntax_error_line_number(tmp_path: Path):
+    content = """# Releases
+
+## [v0.56]
+```yaml
+title: "v0.56 - Valid title"
+malformed line without colon
+date: "2026-10-23"
+```
+
+Body content.
+"""
+    rel_file = tmp_path / "RELEASES.md"
+    rel_file.write_text(content)
+
+    with pytest.raises(ValueError, match=r"syntax error.*line 6"):
+        parse_releases_file(rel_file)
+
+
+def test_parse_releases_semver_patch_version(tmp_path: Path):
+    content = """# Releases
+
+## [v0.56.1]
+```yaml
+title: "v0.56.1 - Patch Release"
+date: "2026-10-24"
+```
+
+Patch notes.
+"""
+    rel_file = tmp_path / "RELEASES.md"
+    rel_file.write_text(content)
+
+    release = parse_releases_file(rel_file)
+    assert release["version"] == "v0.56.1"
+    assert release["title"] == "v0.56.1 - Patch Release"
+
+
+def test_get_git_tags_failure_raises(monkeypatch: pytest.MonkeyPatch):
+    from scripts import release_helper
+    import subprocess
+
+    def fake_check_output(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, ["git", "tag", "-l"])
+
+    monkeypatch.setattr(subprocess, "check_output", fake_check_output)
+
+    with pytest.raises(RuntimeError, match="Failed to retrieve git tags"):
+        release_helper.get_git_tags()
+
