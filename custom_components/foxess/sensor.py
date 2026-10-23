@@ -12,14 +12,12 @@ import hashlib
 import asyncio
 import voluptuous as vol
 
-from homeassistant.components.rest.data import RestData
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
     PLATFORM_SCHEMA,
     SensorEntity,
 )
-
 
 from homeassistant.const import (
     ATTR_DATE,
@@ -48,76 +46,61 @@ from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.util import dt as dt_util
 import homeassistant.helpers.config_validation as cv
 
+from .api import FoxESSApiClient, GetAuth, waitforAPI
+from .const import (
+    ATTR_BATTERYLIST,
+    ATTR_DEVICE_SN,
+    ATTR_DEVICE_TYPE,
+    ATTR_LASTCLOUDSYNC,
+    ATTR_MANAGER,
+    ATTR_MASTER,
+    ATTR_MODULESN,
+    ATTR_PLANTNAME,
+    ATTR_SLAVE,
+    BATTERY_LEVELS,
+    CONF_APIKEY,
+    CONF_DEVICEID,
+    CONF_DEVICESN,
+    CONF_ENERGY_GENERATED_SANITY,
+    CONF_EVO,
+    CONF_EXTPV,
+    CONF_GET_VARIABLES,
+    CONF_NAME,
+    CONF_REDUCE_API_CALLS,
+    CONF_SYSTEM_ID,
+    CONF_V1_API,
+    CONF_XTZONE,
+    DEFAULT_ENERGY_GENERATED_SANITY,
+    DEFAULT_NAME,
+    DEFAULT_REDUCE_API_CALLS,
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+    FetchResult,
+    RETRY_IN_5_MINS,
+    RETRY_IN_10_MINS,
+    RETRY_NEXT_SLOT,
+    SCAN_INTERVAL,
+    SCAN_MINUTES,
+    YAML_CONFIGS_KEY,
+    _AUTH_ERRNO,
+    _ENDPOINT_OA_BATTERY_SETTINGS,
+    _ENDPOINT_OA_DAILY_GENERATION,
+    _ENDPOINT_OA_DEVICE_DETAIL,
+    _ENDPOINT_OA_DEVICE_DETAIL_V1,
+    _ENDPOINT_OA_DEVICE_LIST,
+    _ENDPOINT_OA_DEVICE_VARIABLES,
+    _ENDPOINT_OA_DEVICE_VARIABLES_V1,
+    _ENDPOINT_OA_DOMAIN,
+    _ENDPOINT_OA_REPORT,
+)
+
 _LOGGER = logging.getLogger(__name__)
-DOMAIN = "foxess"
-_ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
-_ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
-_ENDPOINT_OA_REPORT = "/op/v0/device/report/query"
-_ENDPOINT_OA_DEVICE_DETAIL = "/op/v0/device/detail"
-_ENDPOINT_OA_DEVICE_DETAIL_V1 = "/op/v1/device/detail"
-_ENDPOINT_OA_DEVICE_VARIABLES = "/op/v0/device/real/query"
-_ENDPOINT_OA_DEVICE_VARIABLES_V1 = "/op/v1/device/real/query"
-_ENDPOINT_OA_DAILY_GENERATION = "/op/v0/device/generation?sn="
 
 METHOD_POST = "POST"
 METHOD_GET = "GET"
 DEFAULT_ENCODING = "UTF-8"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DEFAULT_TIMEOUT = 75  # increase the size of inherited timeout, the API is a bit slow
-
-ATTR_DEVICE_SN = "deviceSN"
-ATTR_PLANTNAME = "plantName"
-ATTR_MODULESN = "moduleSN"
-ATTR_DEVICE_TYPE = "deviceType"
-ATTR_MASTER = "masterVersion"
-ATTR_MANAGER = "managerVersion"
-ATTR_SLAVE = "slaveVersion"
-ATTR_BATTERYLIST = "batteryList"
-ATTR_LASTCLOUDSYNC = "lastCloudSync"
-
-BATTERY_LEVELS = {"High": 80, "Medium": 50, "Low": 25, "Empty": 10}
-
-CONF_APIKEY = "apiKey"
-CONF_DEVICESN = "deviceSN"
-CONF_DEVICEID = "deviceID"
-CONF_SYSTEM_ID = "system_id"
-CONF_EXTPV = "extendPV"
-CONF_XTZONE = "xtZone"
-CONF_GET_VARIABLES = "Restrict"
-CONF_V1_API = "Use_V1_Api"
-CONF_EVO = "Evo"
-CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
-DEFAULT_ENERGY_GENERATED_SANITY = 100.0
-CONF_REDUCE_API_CALLS = "reduceAPICalls"
-DEFAULT_REDUCE_API_CALLS = False
-RETRY_NEXT_SLOT = -1
-RETRY_IN_5_MINS = 25
-RETRY_IN_10_MINS = 20
-_AUTH_ERRNO = {40256, 41808, 41809}  # Invalid/empty API key per FoxESS OpenAPI docs
-
-# Key under hass.data where YAML-configured device info is stored so the
-# config flow can detect conflicts and preserve the original deviceID.
-YAML_CONFIGS_KEY = "foxess_yaml_configs"
-
-
-class FetchResult(enum.Enum):
-    """Result of a FoxESS Cloud API fetch call."""
-
-    OK = "ok"
-    ERROR = "error"
-    AUTH_FAILED = "auth_failed"
-    DNS_TIMEOUT = "dns_timeout"
-
-    def __bool__(self) -> bool:
-        """Return False for OK so callers can use `if not result:` for success."""
-        return self is not FetchResult.OK
-
-
-DEFAULT_NAME = "FoxESS"
-DEFAULT_VERIFY_SSL = False  # True
-
-SCAN_MINUTES = 1  # number of minutes betwen API requests
-SCAN_INTERVAL = timedelta(minutes=SCAN_MINUTES)
+DEFAULT_VERIFY_SSL = False
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -856,234 +839,128 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         )
 
 
-class GetAuth:
-    def get_signature(self, token, path, lang="en"):
-        """
-        This function is used to generate a signature consisting of URL, token, and timestamp, and return a dictionary containing the signature and other information.
-            :param token: your key
-            :param path:  your request path
-            :param lang: language, default is English.
-            :return: with authentication header
-        """
-        timestamp = round(time.time() * 1000)
-        signature = rf"{path}\r\n{token}\r\n{timestamp}"
-        # or use user_agent_rotator.get_random_user_agent() for user-agent
-        result = {
-            "token": token,
-            "lang": lang,
-            "timestamp": str(timestamp),
-            "Content-Type": "application/json",
-            "signature": self.md5c(text=signature),
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/117.0.0.0 Safari/537.36",
-            "Connection": "close",
-        }
 
-        return result
-
-    @staticmethod
-    def md5c(text="", _type="lower"):
-        res = hashlib.md5(text.encode(encoding="UTF-8")).hexdigest()
-        if _type.__eq__("lower"):
-            return res
-        else:
-            return res.upper()
-
-
-async def waitforAPI():
-    global last_api
-    # wait for openAPI, there is a minimum of 1 second allowed between OpenAPI query calls
-    # check if last_api call was less than a second ago and if so delay the balance of 1 second
-    now = time.time()
-    last = last_api
-    diff = now - last if last != 0 else 1
-    diff = round((diff + 0.2), 2)
-    if diff < 1:
-        await asyncio.sleep(diff)
-        _LOGGER.debug("API enforced delay, wait: %s", diff)
-    now = time.time()
-    last_api = now
-    return False
 
 
 async def getOADeviceDetail(hass, allData, devicesn, apiKey):
-    await waitforAPI()
-
-    if V1_Api:
-        path = _ENDPOINT_OA_DEVICE_DETAIL_V1
-        _LOGGER.debug("Device Detail using V1 API")
-    else:
-        path = _ENDPOINT_OA_DEVICE_DETAIL
-
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + path + "?sn="
-    _LOGGER.debug("OADevice Detail fetch %s%s", path, devicesn)
-    timestamp = round(time.time() * 1000)
-
-    restOADeviceDetail = RestData(
-        hass,
-        METHOD_GET,
-        path + devicesn,
-        DEFAULT_ENCODING,
-        None,
-        headerData,
-        None,
-        None,
-        DEFAULT_VERIFY_SSL,
-        SSLCipherList.PYTHON_DEFAULT,
-        DEFAULT_TIMEOUT,
+    client = FoxESSApiClient(hass)
+    res, response, elapsed_ms = await client.async_get_device_detail(
+        devicesn, apiKey, v1_api=V1_Api
     )
-    await restOADeviceDetail.async_update()
-
-    if restOADeviceDetail.data is None or restOADeviceDetail.data == "":
+    if res is not FetchResult.OK or not response:
         _LOGGER.debug("Unable to get OA Device Detail from FoxESS Cloud")
-        return FetchResult.ERROR
-    else:
-        response = json.loads(restOADeviceDetail.data)
-        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
-            ResponseTime = round(time.time() * 1000) - timestamp
-            if ResponseTime > 0:
-                allData["raw"]["ResponseTime"] = ResponseTime
-            else:
-                allData["raw"]["ResponseTime"] = 0
-            _LOGGER.debug("OA Device Detail Good Response: %s", response["result"])
-            result = response["result"]
-            allData["addressbook"] = result
-            # manually poke this in as on the old cloud it was called plantname, need to keep in line with old entity name
-            plantName = result["stationName"]
-            allData["addressbook"]["plantName"] = plantName
-            testBattery = result["hasBattery"]
-            if testBattery:
-                _LOGGER.debug("OA Device Detail System has Battery: %s", testBattery)
-            else:
-                _LOGGER.debug("OA Device Detail System has No Battery: %s", testBattery)
-                allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
-            return FetchResult.OK
+        return res
+
+    if response.get("errno") == 0 and (
+        response.get("msg") in ("success", "Operation successful")
+    ):
+        allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
+        _LOGGER.debug("OA Device Detail Good Response: %s", response.get("result"))
+        result = response["result"]
+        allData["addressbook"] = result
+        # manually poke this in as on the old cloud it was called plantname, need to keep in line with old entity name
+        plantName = result.get("stationName")
+        allData["addressbook"]["plantName"] = plantName
+        testBattery = result.get("hasBattery")
+        if testBattery:
+            _LOGGER.debug("OA Device Detail System has Battery: %s", testBattery)
         else:
-            _LOGGER.error("OA Device Detail Bad Response: %s", response)
-            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
+            _LOGGER.debug("OA Device Detail System has No Battery: %s", testBattery)
+            allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
+        return FetchResult.OK
+    else:
+        _LOGGER.error("OA Device Detail Bad Response: %s", response)
+        return (
+            FetchResult.AUTH_FAILED
+            if response.get("errno") in _AUTH_ERRNO
+            else FetchResult.ERROR
+        )
 
 
 async def getOADeviceList(hass, allData, devicesn, apiKey):
-    await waitforAPI()
-
-    path = "/op/v0/device/list"
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + "/op/v0/device/list"
-    _LOGGER.debug("OADevice List fetch %s%s", path, devicesn)
-    timestamp = round(time.time() * 1000)
-
-    listData = (
-        '{ "currentPage": 1, "pageSize": 10}'
+    client = FoxESSApiClient(hass)
+    res, response, elapsed_ms = await client.async_get_device_list(
+        apiKey, page=1, page_size=10
     )
-
-    restOADeviceList = RestData(
-        hass,
-        METHOD_POST,
-        path,
-        DEFAULT_ENCODING,
-        None,
-        headerData,
-        None,
-        listData,
-        DEFAULT_VERIFY_SSL,
-        SSLCipherList.PYTHON_DEFAULT,
-        DEFAULT_TIMEOUT,
-    )
-    await restOADeviceList.async_update()
-
-    if restOADeviceList.data is None or restOADeviceList.data == "":
+    if res is not FetchResult.OK or not response:
         _LOGGER.debug("Unable to get OA Device List from FoxESS Cloud")
-        return FetchResult.ERROR
-    else:
-        response = json.loads(restOADeviceList.data)
-        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
-            ResponseTime = round(time.time() * 1000) - timestamp
-            if ResponseTime > 0:
-                allData["raw"]["ResponseTime"] = ResponseTime
-            else:
-                allData["raw"]["ResponseTime"] = 0
-            _LOGGER.debug("OA Device List Good Response: %s", response["result"])
-            result = json.loads(restOADeviceList.data)["result"]["data"]
-            for item in result:
-                variableName = item["stationName"]
-                _LOGGER.debug("OA Device List item: %s", item)
-                break
-            allData["addressbook"] = item
-            plantName = item["stationName"]
-            allData["addressbook"]["plantName"] = plantName
-            allData["addressbook"]["masterVersion"] = 'not provided'
-            allData["addressbook"]["managerVersion"] = 'not provided'
-            allData["addressbook"]["slaveVersion"] = 'not provided'
-            allData["addressbook"]["batteryList"] = 'not provided'
-            testBattery = item["hasBattery"]
-            if testBattery:
-                _LOGGER.debug("OA Device List System has Battery: %s", testBattery)
-            else:
-                _LOGGER.debug("OA Device List System has No Battery: %s", testBattery)
-                allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
+        return res
 
-            return FetchResult.OK
+    if response.get("errno") == 0 and (
+        response.get("msg") in ("success", "Operation successful")
+    ):
+        allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
+        _LOGGER.debug("OA Device List Good Response: %s", response.get("result"))
+        result_data = response.get("result", {}).get("data", [])
+        item = {}
+        for d in result_data:
+            if d.get("deviceSN") == devicesn:
+                item = d
+                break
+        if not item and result_data:
+            item = result_data[0]
+        allData["addressbook"] = item
+        plantName = item.get("stationName")
+        allData["addressbook"]["plantName"] = plantName
+        allData["addressbook"]["masterVersion"] = "not provided"
+        allData["addressbook"]["managerVersion"] = "not provided"
+        allData["addressbook"]["slaveVersion"] = "not provided"
+        allData["addressbook"]["batteryList"] = "not provided"
+        testBattery = item.get("hasBattery")
+        if testBattery:
+            _LOGGER.debug("OA Device List System has Battery: %s", testBattery)
         else:
-            _LOGGER.error("OA Device List Bad Response: %s", response)
-            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
+            _LOGGER.debug("OA Device List System has No Battery: %s", testBattery)
+            allData["addressbook"][ATTR_BATTERYLIST] = "No Battery"
+        return FetchResult.OK
+    else:
+        _LOGGER.error("OA Device List Bad Response: %s", response)
+        return (
+            FetchResult.AUTH_FAILED
+            if response.get("errno") in _AUTH_ERRNO
+            else FetchResult.ERROR
+        )
 
 
 async def getOABatterySettings(hass, allData, devicesn, apiKey):
-    await waitforAPI()  # check for api delay
-
-    path = "/op/v0/device/battery/soc/get"
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_BATTERY_SETTINGS
-    if "hasBattery" not in allData["addressbook"]:
+    if "hasBattery" not in allData.get("addressbook", {}):
         hasBattery = False
     else:
         hasBattery = allData["addressbook"]["hasBattery"]
 
     if hasBattery:
         # only make this call if device detail reports battery fitted
-        _LOGGER.debug("OABattery Settings fetch %s %s", path, devicesn)
-        restOABatterySettings = RestData(
-            hass,
-            METHOD_GET,
-            path + devicesn,
-            DEFAULT_ENCODING,
-            None,
-            headerData,
-            None,
-            None,
-            DEFAULT_VERIFY_SSL,
-            SSLCipherList.PYTHON_DEFAULT,
-            DEFAULT_TIMEOUT,
-        )
-        await restOABatterySettings.async_update()
-
-        if restOABatterySettings.data is None:
+        _LOGGER.debug("OABattery Settings fetch for SN: %s", devicesn)
+        client = FoxESSApiClient(hass)
+        res, response, elapsed_ms = await client.async_get_battery_settings(devicesn, apiKey)
+        if res is not FetchResult.OK or not response:
             _LOGGER.debug("Unable to get OA Battery Settings from FoxESS Cloud")
-            return FetchResult.ERROR
+            return res
+
+        if response.get("errno") == 0 and (
+            response.get("msg") in ("success", "Operation successful")
+        ):
+            _LOGGER.debug(
+                "OA Battery Settings Good Response: %s", response.get("result")
+            )
+            result = response.get("result", {})
+            minSoc = result.get("minSoc")
+            minSocOnGrid = result.get("minSocOnGrid")
+            allData["battery"]["minSoc"] = minSoc
+            allData["battery"]["minSocOnGrid"] = minSocOnGrid
+            _LOGGER.debug(
+                "OA Battery Settings read MinSoc: %s, MinSocOnGrid: %s",
+                minSoc,
+                minSocOnGrid,
+            )
+            return FetchResult.OK
         else:
-            response = json.loads(restOABatterySettings.data)
-            if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
-                _LOGGER.debug(
-                    "OA Battery Settings Good Response: %s", response["result"]
-                )
-                result = response["result"]
-                minSoc = result["minSoc"]
-                minSocOnGrid = result["minSocOnGrid"]
-                allData["battery"]["minSoc"] = minSoc
-                allData["battery"]["minSocOnGrid"] = minSocOnGrid
-                _LOGGER.debug(
-                    "OA Battery Settings read MinSoc: %d, MinSocOnGrid: %d",
-                    minSoc,
-                    minSocOnGrid,
-                )
-                return FetchResult.OK
-            else:
-                _LOGGER.error("OA Battery Settings Bad Response: %s", response)
-                return FetchResult.ERROR
+            _LOGGER.error("OA Battery Settings Bad Response: %s", response)
+            return (
+                FetchResult.AUTH_FAILED
+                if response.get("errno") in _AUTH_ERRNO
+                else FetchResult.ERROR
+            )
     else:
         # device detail reports no battery fitted so reset these variables to show unknown
         allData["battery"]["minSoc"] = None
@@ -1092,421 +969,398 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
 
 
 async def getReport(hass, allData, apiKey, devicesn):
-    await waitforAPI()  # check for api delay
-
-    path = _ENDPOINT_OA_REPORT
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_REPORT
-    _LOGGER.debug("OA Report fetch %s ", path)
+    client = FoxESSApiClient(hass)
+    _LOGGER.debug("OA Report fetch for SN %s", devicesn)
 
     now = datetime.now()
-    month = str(datetime.now().month)  # now.strftime("%-m")
+    variables = [
+        "feedin",
+        "generation",
+        "gridConsumption",
+        "chargeEnergyToTal",
+        "dischargeEnergyToTal",
+        "loads",
+        "PVEnergyTotal",
+    ]
 
-    reportData = (
-        '{"sn":"'
-        + devicesn
-        + '","year":'
-        + now.strftime("%Y")
-        + ',"month":'
-        + month
-        + ',"dimension":"month","variables":["feedin","generation","gridConsumption","chargeEnergyToTal","dischargeEnergyToTal","loads","PVEnergyTotal"]}'
+    res, response, elapsed_ms = await client.async_get_report(
+        devicesn=devicesn,
+        token=apiKey,
+        year=now.year,
+        month=now.month,
+        variables=variables,
     )
 
-    _LOGGER.debug("getReport OA request: %s", reportData)
-
-    restOAReport = RestData(
-        hass,
-        METHOD_POST,
-        path,
-        DEFAULT_ENCODING,
-        None,
-        headerData,
-        None,
-        reportData,
-        DEFAULT_VERIFY_SSL,
-        SSLCipherList.PYTHON_DEFAULT,
-        DEFAULT_TIMEOUT,
-    )
-
-    await restOAReport.async_update()
-
-    if restOAReport.data is None or restOAReport.data == "":
+    if res is not FetchResult.OK or not response:
         _LOGGER.debug("Unable to get OA Report from FoxESS Cloud")
-        return FetchResult.ERROR
-    else:
-        # Openapi responded so process data
-        response = json.loads(restOAReport.data)
-        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
+        return res
+
+    if response.get("errno") == 0 and (
+        response.get("msg") in ("success", "Operation successful")
+    ):
+        _LOGGER.debug("OA Report Data fetched OK: %s", response)
+        result = response.get("result", [])
+        today = now.day
+        for item in result:
+            variableName = item.get("variable")
+            if not variableName:
+                continue
+            index = 1
+            cumulative_total = 0
+            for dataItem in item.get("values", []):
+                if today == index:
+                    if dataItem is not None:
+                        cumulative_total = dataItem
+                    else:
+                        _LOGGER.debug("Report month fetch, None received")
+                    break
+                index += 1
+            allData["report"][variableName] = round(cumulative_total, 3)
             _LOGGER.debug(
-                "OA Report Data fetched OK: %s %s ", response, restOAReport.data[:350]
+                "OA Report Variable: %s, Total: %s", variableName, cumulative_total
             )
-            result = json.loads(restOAReport.data)["result"]
-            today = int(
-                now.strftime("%d")
-            )  # need today as an integer to locate in the monthly report index
-            for item in result:
-                variableName = item["variable"]
-                # Daily reports break down the data hour by month for each day
-                # so locate the current days index and use that as the sum
-                index = 1
-                cumulative_total = 0
-                for dataItem in item["values"]:
-                    if today == index:  # we're only interested in the total for today
-                        if dataItem != None:
-                            cumulative_total = dataItem
-                        else:
-                            _LOGGER.debug("Report month fetch, None received")
-                        break
-                    index += 1
-                    # cumulative_total += dataItem
-                allData["report"][variableName] = round(cumulative_total, 3)
-                _LOGGER.debug(
-                    "OA Report Variable: %s, Total: %s", variableName, cumulative_total
-                )
-            return FetchResult.OK
-        else:
-            _LOGGER.debug("OA Report Bad Response: %s %s ", response, restOAReport.data)
-            return FetchResult.ERROR
+        return FetchResult.OK
+    else:
+        _LOGGER.debug("OA Report Bad Response: %s", response)
+        return (
+            FetchResult.AUTH_FAILED
+            if response.get("errno") in _AUTH_ERRNO
+            else FetchResult.ERROR
+        )
 
 
 async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
-    await waitforAPI()  # check for api delay
+    client = FoxESSApiClient(hass)
+    _LOGGER.debug("getReportDailyGeneration fetch for SN %s", devicesn)
 
-    path = "/op/v0/device/generation"
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + _ENDPOINT_OA_DAILY_GENERATION
-    _LOGGER.debug("getReportDailyGeneration fetch %s ", path)
-
-    generationData = '{"sn":"' + devicesn + '","dimension":"day"}'
-
-    _LOGGER.debug("getReportDailyGeneration OA request: %s", generationData)
-
-    restOAgen = RestData(
-        hass,
-        METHOD_GET,
-        path + devicesn,
-        DEFAULT_ENCODING,
-        None,
-        headerData,
-        None,
-        generationData,
-        DEFAULT_VERIFY_SSL,
-        SSLCipherList.PYTHON_DEFAULT,
-        DEFAULT_TIMEOUT,
-    )
-
-    await restOAgen.async_update()
-
-    if restOAgen.data is None or restOAgen.data == "":
+    res, response, elapsed_ms = await client.async_get_daily_generation(devicesn, apiKey)
+    if res is not FetchResult.OK or not response:
         _LOGGER.debug("Unable to get OA Daily Generation Report from FoxESS Cloud")
-        return FetchResult.ERROR
-    else:
-        response = json.loads(restOAgen.data)
-        if response.get("errno") == 0 and (
-            response.get("msg") == "success"
-            or response.get("msg") == "Operation successful"
-        ):
+        return res
+
+    if response.get("errno") == 0 and (
+        response.get("msg") in ("success", "Operation successful")
+    ):
+        _LOGGER.debug("OA Daily Generation Report Data fetched OK Response: %s", response)
+
+        result_data = response.get("result")
+        if not isinstance(result_data, dict):
             _LOGGER.debug(
-                "OA Daily Generation Report Data fetched OK Response: %s",
-                restOAgen.data[:500],
+                "OA Daily Generation Report result is not a dict: %s", result_data
             )
+            return FetchResult.ERROR
 
-            result_data = response.get("result")
-            if not isinstance(result_data, dict):
-                _LOGGER.debug(
-                    "OA Daily Generation Report result is not a dict: %s", result_data
-                )
-                return FetchResult.ERROR
-
-            parsed = result_data
-            if "today" in parsed and parsed["today"] is not None:
-                allData["reportDailyGeneration"]["value"] = parsed["today"]
-                _LOGGER.debug(
-                    "OA Daily Generation Report data: todays value %s ", parsed["today"]
-                )
-            else:
-                _LOGGER.debug(
-                    "OA Daily Generation Report data, today has no value in %s, retaining previous: %s",
-                    parsed,
-                    allData["reportDailyGeneration"].get("value"),
-                )
-
-            if "month" in parsed and parsed["month"] is not None:
-                allData["reportDailyGeneration"]["month"] = parsed["month"]
-                _LOGGER.debug(
-                    "OA Daily Generation Report data: month value %s ", parsed["month"]
-                )
-            else:
-                _LOGGER.debug(
-                    "OA Daily Generation Report data, month has no value in %s, retaining previous: %s",
-                    parsed,
-                    allData["reportDailyGeneration"].get("month"),
-                )
-
-            if "cumulative" in parsed and parsed["cumulative"] is not None:
-                allData["reportDailyGeneration"]["cumulative"] = parsed["cumulative"]
-                _LOGGER.debug(
-                    "OA Daily Generation Report data: cumulative value %s ",
-                    parsed["cumulative"],
-                )
-            else:
-                _LOGGER.debug(
-                    "OA Daily Generation Report data, cumulative has no value in %s, retaining previous: %s",
-                    parsed,
-                    allData["reportDailyGeneration"].get("cumulative"),
-                )
-
-            return FetchResult.OK
+        parsed = result_data
+        if "today" in parsed and parsed["today"] is not None:
+            allData["reportDailyGeneration"]["value"] = parsed["today"]
+            _LOGGER.debug(
+                "OA Daily Generation Report data: todays value %s ", parsed["today"]
+            )
         else:
             _LOGGER.debug(
-                "OA Daily Generation Report Bad Response: %s %s ",
-                response,
-                restOAgen.data,
+                "OA Daily Generation Report data, today has no value in %s, retaining previous: %s",
+                parsed,
+                allData["reportDailyGeneration"].get("value"),
             )
-            return (
-                FetchResult.AUTH_FAILED
-                if response.get("errno") in _AUTH_ERRNO
-                else FetchResult.ERROR
+
+        if "month" in parsed and parsed["month"] is not None:
+            allData["reportDailyGeneration"]["month"] = parsed["month"]
+            _LOGGER.debug(
+                "OA Daily Generation Report data: month value %s ", parsed["month"]
             )
+        else:
+            _LOGGER.debug(
+                "OA Daily Generation Report data, month has no value in %s, retaining previous: %s",
+                parsed,
+                allData["reportDailyGeneration"].get("month"),
+            )
+
+        if "cumulative" in parsed and parsed["cumulative"] is not None:
+            allData["reportDailyGeneration"]["cumulative"] = parsed["cumulative"]
+            _LOGGER.debug(
+                "OA Daily Generation Report data: cumulative value %s ",
+                parsed["cumulative"],
+            )
+        else:
+            _LOGGER.debug(
+                "OA Daily Generation Report data, cumulative has no value in %s, retaining previous: %s",
+                parsed,
+                allData["reportDailyGeneration"].get("cumulative"),
+            )
+
+        return FetchResult.OK
+    else:
+        _LOGGER.debug("OA Daily Generation Report Bad Response: %s", response)
+        return (
+            FetchResult.AUTH_FAILED
+            if response.get("errno") in _AUTH_ERRNO
+            else FetchResult.ERROR
+        )
 
 
 async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False):
-    await waitforAPI()  # check for api delay
-
-    # "deviceSN" used for OpenAPI and it only fetches the real time data
-
-    # build the devicesn string
-    if V1_Api:
-        dsn = '{"sns":["' + devicesn + '"] }'
-    else:
-        dsn = '{"sn":"' + devicesn + '" }'
-
+    client = FoxESSApiClient(hass)
+    raw_vars = None
     if RestrictGetVar:
         _LOGGER.debug("Getting Device Variable in restricted mode")
-        # build the devicesn string
-        if V1_Api:
-            dsn = '{"sns":["' + devicesn + '"] '
-        else:
-            dsn = '{"sn":"' + devicesn + '"'
+        raw_vars = [
+            "ambientTemperation",
+            "batChargePower",
+            "batCurrent",
+            "batCurrent_1",
+            "batCurrent_2",
+            "batDischargePower",
+            "batTemperature",
+            "batTemperature_1",
+            "batTemperature_2",
+            "batVolt",
+            "batVolt_1",
+            "batVolt_2",
+            "boostTemperation",
+            "chargeTemperature",
+            "dspTemperature",
+            "epsCurrentR",
+            "epsCurrentS",
+            "epsCurrentT",
+            "epsPower",
+            "epsPowerR",
+            "epsPowerS",
+            "epsPowerT",
+            "epsVoltR",
+            "epsVoltS",
+            "epsVoltT",
+            "feedinPower",
+            "generationPower",
+            "gridConsumptionPower",
+            "input",
+            "invBatCurrent",
+            "invBatPower",
+            "invBatVolt",
+            "invTemperation",
+            "loadsPower",
+            "loadsPowerR",
+            "loadsPowerS",
+            "loadsPowerT",
+            "meterPower",
+            "meterPower2",
+            "meterPowerR",
+            "meterPowerS",
+            "meterPowerT",
+            "PowerFactor",
+            "pv1Current",
+            "pv1Power",
+            "pv1Volt",
+            "pv2Current",
+            "pv2Power",
+            "pv2Volt",
+            "pv3Current",
+            "pv3Power",
+            "pv3Volt",
+            "pv4Current",
+            "pv4Power",
+            "pv4Volt",
+            "pvPower",
+            "RCurrent",
+            "ReactivePower",
+            "RFreq",
+            "RPower",
+            "RVolt",
+            "SCurrent",
+            "SFreq",
+            "SoC",
+            "SPower",
+            "SVolt",
+            "TCurrent",
+            "TFreq",
+            "TPower",
+            "TVolt",
+            "SoC_1",
+            "Soc_2",
+            "ResidualEnergy",
+            "energyThroughput",
+            "runningState",
+            "currentFaultCount",
+        ]
 
-        rawData = (
-            dsn + ',"variables":["ambientTemperation", "batChargePower", "batCurrent", "batCurrent_1", "batCurrent_2", "batDischargePower", "batTemperature", "batTemperature_1", "batTemperature_2", "batVolt", "batVolt_1", "batVolt_2", "boostTemperation", "chargeTemperature", "dspTemperature", "epsCurrentR", "epsCurrentS", "epsCurrentT", "epsPower", "epsPowerR", "epsPowerS", "epsPowerT", "epsVoltR", "epsVoltS", "epsVoltT", "feedinPower", "generationPower", "gridConsumptionPower", "input", "invBatCurrent", "invBatPower", "invBatVolt", "invTemperation", "loadsPower", "loadsPowerR", "loadsPowerS", "loadsPowerT", "meterPower", "meterPower2", "meterPowerR", "meterPowerS", "meterPowerT", "PowerFactor", "pv1Current", "pv1Power", "pv1Volt", "pv2Current", "pv2Power", "pv2Volt", "pv3Current", "pv3Power", "pv3Volt", "pv4Current", "pv4Power", "pv4Volt", "pvPower", "RCurrent", "ReactivePower", "RFreq", "RPower", "RVolt", "SCurrent", "SFreq", "SoC", "SPower", "SVolt", "TCurrent", "TFreq", "TPower", "TVolt", "SoC_1", "Soc_2", "ResidualEnergy", "energyThroughput", "runningState", "currentFaultCount"] }'
-        )
-    else:
-        rawData = dsn # '{"sn":"' + dsn + '" }'
-
-    _LOGGER.debug("getRaw OA request: %s", rawData)
-
-    timestamp = round(time.time() * 1000)
-
-    if V1_Api:
-        path = _ENDPOINT_OA_DEVICE_VARIABLES_V1
-        _LOGGER.debug("Using V1 API")
-    else:
-        path = _ENDPOINT_OA_DEVICE_VARIABLES
-
-    headerData = GetAuth().get_signature(token=apiKey, path=path)
-
-    path = _ENDPOINT_OA_DOMAIN + path
-    _LOGGER.debug("Path: %s", path)
-
-    restOADeviceVariables = RestData(
-        hass,
-        METHOD_POST,
-        path,
-        DEFAULT_ENCODING,
-        None,
-        headerData,
-        None,
-        rawData,
-        DEFAULT_VERIFY_SSL,
-        SSLCipherList.PYTHON_DEFAULT,
-        DEFAULT_TIMEOUT,
+    res, response, elapsed_ms = await client.async_get_real_data(
+        devicesn=devicesn,
+        token=apiKey,
+        variables=raw_vars,
+        v1_api=V1_Api,
     )
 
-    await restOADeviceVariables.async_update()
-    if restOADeviceVariables.last_exception is not None:
-        lastex = str(restOADeviceVariables.last_exception)
-        _LOGGER.debug("Getvar exception: %s", lastex)
-        if "Timeout while contacting DNS servers" in lastex:
-            _LOGGER.debug("Getvar DNS exception: %s", lastex)
-            return FetchResult.DNS_TIMEOUT
-            # [Timeout while contacting DNS servers]
-
-    if restOADeviceVariables.data is None or restOADeviceVariables.data == "":
+    if res is not FetchResult.OK or not response:
         _LOGGER.debug("Unable to get OA Variables from FoxESS Cloud")
-        return FetchResult.ERROR
-    else:
-        # Openapi responded correctly
-        response = json.loads(restOADeviceVariables.data)
-        if response["errno"] == 0 and (response["msg"]=='success' or response["msg"]=='Operation successful'):
-            ResponseTime = round(time.time() * 1000) - timestamp
-            if ResponseTime > 0:
-                allData["raw"]["ResponseTime"] = ResponseTime
+        return res
+
+    if response.get("errno") == 0 and (
+        response.get("msg") in ("success", "Operation successful")
+    ):
+        allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
+        test = response.get("result")
+        if not test or not isinstance(test, list):
+            _LOGGER.debug("OA Variables empty result in response")
+            return FetchResult.ERROR
+
+        timercv = test[0].get("time")
+        try:
+            # format is "2025-02-21 16:38:29 GMT+0000" strptime is useless at international dates, so work out the offset
+            _LOGGER.debug("OA Variables time: %s ", timercv)
+            tzoffsetsign = timercv[23:24]
+            tzoffsethr = int(timercv[24:26])
+            tzoffsetmin = int(timercv[26:28])
+            tzfull = str(timercv[23:28])
+            _LOGGER.debug(
+                "OA Variables tzoffsign: %s, hr: %s, min: %s, full: %s",
+                tzoffsetsign,
+                tzoffsethr,
+                tzoffsetmin,
+                tzfull,
+            )
+            if tzoffsetsign in ["+"]:
+                tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * 1
             else:
-                allData["raw"]["ResponseTime"] = 0
-
-            test = json.loads(restOADeviceVariables.data)["result"]
-
-            timercv = test[0].get("time")
-            try:
-                # format is "2025-02-21 16:38:29 GMT+0000" strptime is useless at international dates, so work out the offset
-                # tsrcv = datetime.strptime(testt, "%Y-%m-%d %H:%M:%S %Z%z") fails on some countries
-                _LOGGER.debug("OA Variables time: %s ", timercv)
-                tzoffsetsign = timercv[23:24]
-                tzoffsethr = int(timercv[24:26])
-                tzoffsetmin = int(timercv[26:28])
-                tzfull = str(timercv[23:28])
-                _LOGGER.debug(
-                    "OA Variables tzoffsign: %s, hr: %s, min: %s, full: %s",
-                    tzoffsetsign,
-                    tzoffsethr,
-                    tzoffsetmin,
-                    tzfull,
-                )
-                if tzoffsetsign in ["+"]:
-                    tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * 1
-                else:
-                    tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * -1
-                tsrcv = (parser.parse(timercv, ignoretz=True)).timestamp()
-                zulu = datetime.now().astimezone().strftime("%z")
-                if zulu != tzfull:
-                    if xtzone:
-                        _LOGGER.debug(
-                            "OA Variables tsrcv applying offset: %s, offset: %s, zulu: %s",
-                            tsrcv,
-                            tzoffset,
-                            zulu,
-                        )
-                        tsrcv = tsrcv - tzoffset
-                else:
+                tzoffset = (tzoffsethr * 3600 + tzoffsetmin * 60) * -1
+            tsrcv = (parser.parse(timercv, ignoretz=True)).timestamp()
+            zulu = datetime.now().astimezone().strftime("%z")
+            if zulu != tzfull:
+                if xtzone:
                     _LOGGER.debug(
-                        "OA Variables tsrcv is local: %s, zulu: %s, offset: %s ",
+                        "OA Variables tsrcv applying offset: %s, offset: %s, zulu: %s",
                         tsrcv,
-                        zulu,
                         tzoffset,
+                        zulu,
                     )
-            except:
-                tsrcv = 0
-            age = 0
-            max_age = 661 if reduce_api_calls else 361
-            if tsrcv != 0:
-                testd = datetime.now()
-                tsnow = round(time.time())
-                age = round(tsnow - tsrcv)
+                    tsrcv = tsrcv - tzoffset
+            else:
                 _LOGGER.debug(
-                    "OA Variables time: %s vs %s timestamps r:%s now:%s, age: %s",
+                    "OA Variables tsrcv is local: %s, zulu: %s, offset: %s ",
+                    tsrcv,
+                    zulu,
+                    tzoffset,
+                )
+        except:
+            tsrcv = 0
+        age = 0
+        max_age = 661 if reduce_api_calls else 361
+        if tsrcv != 0:
+            testd = datetime.now()
+            tsnow = round(time.time())
+            age = round(tsnow - tsrcv)
+            _LOGGER.debug(
+                "OA Variables time: %s vs %s timestamps r:%s now:%s, age: %s",
+                timercv,
+                testd,
+                tsrcv,
+                tsnow,
+                age,
+            )
+            if age > max_age:
+                _LOGGER.debug(
+                    "OA Variables invalid age: %s vs %s timestamps r:%s now:%s, age: %s (max: %s)",
                     timercv,
                     testd,
                     tsrcv,
                     tsnow,
                     age,
+                    max_age,
                 )
-                if age > max_age:
-                    _LOGGER.debug(
-                        "OA Variables invalid age: %s vs %s timestamps r:%s now:%s, age: %s (max: %s)",
-                        timercv,
-                        testd,
-                        tsrcv,
-                        tsnow,
-                        age,
-                        max_age,
-                    )
 
-            result = test[0].get("datas")
-            _LOGGER.debug("OA Variables Good Response: %s", result)
-            # allData['raw'] = {}
-            for (
-                item
-            ) in result:  # json.loads(result): # restOADeviceVariables.data)['result']:
-                variableName = item["variable"]
-                # If value exists
-                if item.get("value") is not None:
-                    variableValue = item["value"]
-                else:
-                    variableValue = 0
-                    _LOGGER.debug("Variable %s no value, set to zero", variableName)
-                # fix for various battery and scale items
-                if variableName == "SoC_1":
-                    variableName = "SoC_1"  # do nothing for the moment, future release might align this correctly to use SoC
-                elif variableName == "batTemperature_1":
-                    variableName = "batTemperature"  # use entity for single battery systems
-                elif variableName == "invBatPower_1":
-                    variableName = "invBatPower"  # use entity for single battery systems
-                elif variableName == "ResidualEnergy":
-                    # OpenAPI may return:
-                    # - hundredths of kWh with unit '0.01kWh' (e.g. 1933.0 for 19.33 kWh) -> divide by 100
-                    # - tenths of kWh with unit '0.1kWh' (e.g. 235.0 for 23.5 kWh) -> divide by 10
-                    # - directly in kWh with unit '0.01kWh', 'kWh', '1.0kWh', or None (e.g. 20.2 or 23.5)
-                    if variableValue is not None:
-                        scale = item.get("unit")
-                        if scale == "0.1kWh":
-                            if variableValue > 100.0:
-                                variableValue = round(variableValue / 10.0, 2)
-                                _LOGGER.debug("OA Variables ResidualEnergy Scale (0.1kWh): /10 to %s", variableValue)
-                            else:
-                                variableValue = round(float(variableValue), 2)
-                        elif variableValue > 100.0:
-                            variableValue = round(variableValue / 100.0, 2)
-                            _LOGGER.debug("OA Variables ResidualEnergy Scale (>100): /100 to %s", variableValue)
+        result = test[0].get("datas", [])
+        _LOGGER.debug("OA Variables Good Response: %s", result)
+        for item in result:
+            variableName = item.get("variable")
+            if not variableName:
+                continue
+            # If value exists
+            if item.get("value") is not None:
+                variableValue = item["value"]
+            else:
+                variableValue = 0
+                _LOGGER.debug("Variable %s no value, set to zero", variableName)
+            # fix for various battery and scale items
+            if variableName == "SoC_1":
+                variableName = "SoC_1"  # do nothing for the moment, future release might align this correctly to use SoC
+            elif variableName == "batTemperature_1":
+                variableName = "batTemperature"  # use entity for single battery systems
+            elif variableName == "invBatPower_1":
+                variableName = "invBatPower"  # use entity for single battery systems
+            elif variableName == "ResidualEnergy":
+                # OpenAPI may return:
+                # - hundredths of kWh with unit '0.01kWh' (e.g. 1933.0 for 19.33 kWh) -> divide by 100
+                # - tenths of kWh with unit '0.1kWh' (e.g. 235.0 for 23.5 kWh) -> divide by 10
+                # - directly in kWh with unit '0.01kWh', 'kWh', '1.0kWh', or None (e.g. 20.2 or 23.5)
+                if variableValue is not None:
+                    scale = item.get("unit")
+                    if scale == "0.1kWh":
+                        if variableValue > 100.0:
+                            variableValue = round(variableValue / 10.0, 2)
+                            _LOGGER.debug("OA Variables ResidualEnergy Scale (0.1kWh): /10 to %s", variableValue)
                         else:
                             variableValue = round(float(variableValue), 2)
-                            _LOGGER.debug("OA Variables ResidualEnergy: %s (scale: %s)", variableValue, scale)
+                    elif variableValue > 100.0:
+                        variableValue = round(variableValue / 100.0, 2)
+                        _LOGGER.debug("OA Variables ResidualEnergy Scale (>100): /100 to %s", variableValue)
+                    else:
+                        variableValue = round(float(variableValue), 2)
+                        _LOGGER.debug("OA Variables ResidualEnergy: %s (scale: %s)", variableValue, scale)
 
-                allData["raw"][variableName] = variableValue
-                _LOGGER.debug(
-                    "Var: %s, SN: %s set to %s",
-                    variableName,
-                    devicesn,
-                    allData["raw"][variableName],
-                )
+            allData["raw"][variableName] = variableValue
+            _LOGGER.debug(
+                "Var: %s, SN: %s set to %s",
+                variableName,
+                devicesn,
+                allData["raw"][variableName],
+            )
 
-                if variableName == "runningState" and (
-                    "hasBattery" in allData["addressbook"]
-                ):
-                    hasBat = allData["addressbook"]["hasBattery"]
-                    if not hasBat:
-                        # solar only inverter
-                        _LOGGER.debug(
-                            "TestState: %s, hasBat: %s online: %s",
-                            variableValue,
-                            hasBat,
-                            allData["online"],
-                        )
-                        if variableValue is not None:
-                            if variableValue == "161" or variableValue == "162":
-                                # waiting and solar only so set off-line flag
-                                if age < max_age:
-                                    _LOGGER.debug(
-                                        "Waiting but data less than %s minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
-                                        round(max_age / 60),
-                                        variableValue,
-                                        hasBat,
-                                        allData["online"],
-                                    )
-                                else:
-                                    allData["online"] = False
-                                    _LOGGER.debug(
-                                        "Waiting so set off-line state, TestState: %s, hasBat: %s online: %s",
-                                        variableValue,
-                                        hasBat,
-                                        allData["online"],
-                                    )
-                            elif variableValue == "163" and not allData["online"]:
-                                # on-grid but showing off-line wait for it to be set on-line by OADeviceDetail
-                                # allData["online"] = False
+            if variableName == "runningState" and (
+                "hasBattery" in allData["addressbook"]
+            ):
+                hasBat = allData["addressbook"]["hasBattery"]
+                if not hasBat:
+                    # solar only inverter
+                    _LOGGER.debug(
+                        "TestState: %s, hasBat: %s online: %s",
+                        variableValue,
+                        hasBat,
+                        allData["online"],
+                    )
+                    if variableValue is not None:
+                        if variableValue == "161" or variableValue == "162":
+                            # waiting and solar only so set off-line flag
+                            if age < max_age:
                                 _LOGGER.debug(
-                                    "Inverter on-grid but off-line wait for OADevice to confirm, TestState: %s, hasBat: %s",
+                                    "Waiting but data less than %s minutes old - allow sample, RunningState: %s, hasBat: %s online: %s",
+                                    round(max_age / 60),
                                     variableValue,
                                     hasBat,
+                                    allData["online"],
                                 )
+                            else:
+                                allData["online"] = False
+                                _LOGGER.debug(
+                                    "Waiting so set off-line state, TestState: %s, hasBat: %s online: %s",
+                                    variableValue,
+                                    hasBat,
+                                    allData["online"],
+                                )
+                        elif variableValue == "163" and not allData["online"]:
+                            # on-grid but showing off-line wait for it to be set on-line by OADeviceDetail
+                            # allData["online"] = False
+                            _LOGGER.debug(
+                                "Inverter on-grid but off-line wait for OADevice to confirm, TestState: %s, hasBat: %s",
+                                variableValue,
+                                hasBat,
+                            )
 
-            return FetchResult.OK
-        else:
-            _LOGGER.debug("OA Device Variables Bad Response: %s", response)
-            return FetchResult.AUTH_FAILED if response["errno"] in _AUTH_ERRNO else FetchResult.ERROR
+        return FetchResult.OK
+    else:
+        _LOGGER.debug("OA Device Variables Bad Response: %s", response)
+        return (
+            FetchResult.AUTH_FAILED
+            if response.get("errno") in _AUTH_ERRNO
+            else FetchResult.ERROR
+        )
 
 
 class FoxESSEntity(CoordinatorEntity, SensorEntity):
