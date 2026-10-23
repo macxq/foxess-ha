@@ -1,5 +1,17 @@
 # Releases
 
+## [v0.57]
+```yaml
+title: "v0.57 - Battery Residual Energy Device Class Fix (#390)"
+date: "2026-10-23"
+```
+
+### 🔋 Battery Residual Energy Device Class Fix (#390)
+
+• **Updated Device Class to `ENERGY_STORAGE`**: Resolved Home Assistant Core startup warning (`state class 'measurement' which is impossible considering device class ('energy')`) on `sensor.foxess_residual_energy`.
+• **Home Assistant Compliance**: `FoxESSResidualEnergy` now uses `SensorDeviceClass.ENERGY_STORAGE` (with graceful fallback for older HA installations), which properly represents stored battery energy in kWh with `SensorStateClass.MEASUREMENT`.
+• **Entity Rule Audit**: Added comprehensive test coverage auditing all 27 entity classes across the integration to guarantee strict adherence to Home Assistant Core `DEVICE_CLASS_STATE_CLASSES` and `DEVICE_CLASS_UNITS`.
+
 ## [v0.56]
 ```yaml
 title: "v0.56 - Native aiohttp Client & cloud_polling Refactor (#389)"
