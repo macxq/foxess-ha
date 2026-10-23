@@ -21,5 +21,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements_test.txt
 
+      - name: Validate Release & Manifest Version Sync
+        run: python3 scripts/release_helper.py validate
+
       - name: Run tests
         run: pytest tests/ -v
