@@ -80,6 +80,32 @@ async def test_api_client_auth_errno():
 
 
 @pytest.mark.asyncio
+async def test_api_client_timestamp_error_not_auth_failed():
+    """Verify errno 40256 (illegal timestamp) returns FetchResult.ERROR, not AUTH_FAILED."""
+    mock_resp = AsyncMock()
+    mock_resp.status = 200
+    mock_resp.json = AsyncMock(
+        return_value={"errno": 40256, "msg": "Parameter could not be parsed correctly illegal timestamp"}
+    )
+
+    mock_session = MagicMock()
+    mock_session.request.return_value.__aenter__.return_value = mock_resp
+
+    client = FoxESSApiClient(session=mock_session)
+    res, data, _ = await client.async_request("POST", "/op/v0/test", "token")
+
+    assert res == FetchResult.ERROR
+    assert data["errno"] == 40256
+
+
+def test_default_timeout_within_timestamp_window():
+    """DEFAULT_TIMEOUT must be shorter than the ~60s OpenAPI timestamp validation window."""
+    from custom_components.foxess.const import DEFAULT_TIMEOUT
+
+    assert DEFAULT_TIMEOUT <= 55
+
+
+@pytest.mark.asyncio
 async def test_api_client_network_error():
     """Verify network ClientError or Timeout returns FetchResult.ERROR."""
     mock_session = MagicMock()
