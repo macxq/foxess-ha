@@ -1,18 +1,21 @@
-name: Tests
+name: Tests & Release Pipeline
 
-on:
+"on":
   push:
   pull_request:
+  schedule:
+    # Daily at midnight UTC to verify against latest Home Assistant Core releases
+    - cron: "0 0 * * *"
 
 jobs:
   tests:
     name: Run tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
@@ -26,3 +29,48 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+  release:
+    name: Publish Release on Version Bump
+    needs: tests
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code with full tag history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate Release & Manifest Version Sync
+        run: |
+          python3 scripts/release_helper.py validate
+
+      - name: Check if version needs release
+        id: check_release
+        run: |
+          python3 scripts/release_helper.py check-bump >> "$GITHUB_OUTPUT"
+
+      - name: Log skip when not bumped
+        if: steps.check_release.outputs.is_new != 'true'
+        run: |
+          echo "Version is already released or not bumped. Skipping GitHub release."
+
+      - name: Publish GitHub Release
+        if: steps.check_release.outputs.is_new == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/release_helper.py extract-latest > release_info.json
+          VERSION=$(python3 -c "import json; print(json.load(open('release_info.json'))['version'])")
+          TITLE=$(python3 -c "import json; print(json.load(open('release_info.json'))['title'])")
+          python3 -c "import json; open('notes.md', 'w').write(json.load(open('release_info.json'))['body'])"
+
+          echo "Publishing release $VERSION: $TITLE"
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$TITLE" --notes-file notes.md
