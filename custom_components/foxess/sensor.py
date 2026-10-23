@@ -34,8 +34,8 @@ from homeassistant.const import (
     UnitOfReactivePower,
     PERCENTAGE,
 )
-from homeassistant.config_entries import SOURCE_IMPORT
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -127,16 +127,25 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 token = None
 timeslice = {}
 last_api = 0
+LastHour = 0
+RestrictGetVar = False
+xtzone = False
+V1_Api = True
+Evo = False
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up FoxESS sensors from a config entry."""
     config = {**config_entry.data, **config_entry.options}
+    coordinator = (
+        hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {}).get("coordinator")
+    )
     await _async_setup_foxess(
         hass,
         config,
         async_add_entities,
         config_entry,
+        coordinator=coordinator,
     )
 
 
@@ -179,76 +188,92 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     )
 
 
-async def _async_setup_foxess(hass, config, async_add_entities, config_entry=None):
-    """Shared setup logic for platform and config entry."""
-    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo
-    Evo = False
-    name = config.get(CONF_NAME)
-    deviceID = config.get(CONF_DEVICEID)
-    devicesn = config.get(CONF_DEVICESN)
-    apiKey = config.get(CONF_APIKEY)
-    ExtPV = config.get(CONF_EXTPV)
-    xtzone = config.get(CONF_XTZONE)
-    RestrictGetVar = config.get(CONF_GET_VARIABLES)
-    V1_Api = config.get(CONF_V1_API)
-    Evo = config.get(CONF_EVO)
-    energyGeneratedSanityCheck = float(
-        config.get(CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY)
-        or DEFAULT_ENERGY_GENERATED_SANITY
-    )
-    reduce_api_calls = bool(
-        config.get(CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS)
-    )
-    _LOGGER.debug("API Key: %s", f"...{apiKey[-4:]}" if apiKey else "(unset)")
-    _LOGGER.debug("Device SN: %s", devicesn)
-    _LOGGER.debug("Device ID: %s", deviceID)
-    _LOGGER.debug("FoxESS Scan Interval: %s minutes", SCAN_MINUTES)
-    _LOGGER.debug("Cross Time Zone: %s", xtzone)
-    _LOGGER.debug("Restrict Variables: %s", RestrictGetVar)
-    _LOGGER.debug("Extended PV: %s", ExtPV)
-    _LOGGER.debug("v1 Api Calls: %s", V1_Api)
-    _LOGGER.debug("EVO: %s", Evo)
-    _LOGGER.debug("Energy Sanity Check: %s kWh", energyGeneratedSanityCheck)
-    _LOGGER.debug("Reduced API Calls Mode: %s", reduce_api_calls)
-    if V1_Api is not False:
-        V1_Api = True
-        _LOGGER.debug("v1 Api Calls Enabled")
-    else:
-        _LOGGER.warning("v1 Api Calls Disabled, using v0")
-    if ExtPV is not True:
-        ExtPV = False
-        _LOGGER.debug("Extended PV Disabled")
-    else:
-        _LOGGER.warning("Extended PV 1-18 strings enabled")
-    if RestrictGetVar is not True:
-        RestrictGetVar = False
-        _LOGGER.debug("Get Variables is full variable mode")
-    else:
-        _LOGGER.warning("Get Variables is in restricted mode")
-    timeslice[devicesn] = RETRY_NEXT_SLOT
-    last_api = 0
-    LastHour = 0
-    daily_gen_interval = 60 if reduce_api_calls else 15
-    daily_gen_retry_interval = 10 if reduce_api_calls else 5
-    daily_gen_timer = 0
-    allData = {
-        "report": {},
-        "report_date": None,
-        "reportDailyGeneration": {},
-        "raw": {},
-        "battery": {},
-        "addressbook": {},
-        "online": False,
-    }
-    allData["addressbook"]["hasBattery"] = False  # assume no battery is fitted for now
-    allData["addressbook"]["status"] = "3"  # assume inverter is off-line for now
+class FoxDataUpdateCoordinator(DataUpdateCoordinator):
+    """DataUpdateCoordinator for FoxESS."""
 
-    async def async_update_data():
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: dict,
+        config_entry: ConfigEntry | None = None,
+        client: FoxESSApiClient | None = None,
+    ) -> None:
+        """Initialize FoxESS coordinator."""
+        self.config = config
+        self.client = client or FoxESSApiClient(hass)
+        self.devicesn = config.get(CONF_DEVICESN)
+        self.deviceID = config.get(CONF_DEVICEID) or self.devicesn
+        self.inverter_name = config.get(CONF_NAME, DEFAULT_NAME)
+        self.apiKey = config.get(CONF_APIKEY)
+        self.ExtPV = bool(config.get(CONF_EXTPV, False))
+        self.xtzone = bool(config.get(CONF_XTZONE, False))
+        self.RestrictGetVar = bool(config.get(CONF_GET_VARIABLES, False))
+        self.V1_Api = config.get(CONF_V1_API) is not False
+        self.Evo = bool(config.get(CONF_EVO, False))
+        self.energyGeneratedSanityCheck = float(
+            config.get(CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY)
+            or DEFAULT_ENERGY_GENERATED_SANITY
+        )
+        self.reduce_api_calls = bool(
+            config.get(CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS)
+        )
+        self.daily_gen_interval = 60 if self.reduce_api_calls else 15
+        self.daily_gen_retry_interval = 10 if self.reduce_api_calls else 5
+        self.daily_gen_timer = 0
+        self.allData = {
+            "report": {},
+            "report_date": None,
+            "reportDailyGeneration": {},
+            "raw": {},
+            "battery": {},
+            "addressbook": {
+                "hasBattery": config.get("has_battery", False),
+                "status": "3",
+            },
+            "online": False,
+        }
+
+        if self.devicesn:
+            timeslice[self.devicesn] = RETRY_NEXT_SLOT
+
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=self.inverter_name or DEFAULT_NAME,
+            update_method=self.async_update_data,
+            update_interval=SCAN_INTERVAL,
+            config_entry=config_entry,
+        )
+        self.data = self.allData
+
+    async def async_config_entry_first_refresh(self) -> None:
+        """Perform first refresh during config entry setup."""
+        await self.async_refresh()
+        if isinstance(self.last_exception, ConfigEntryAuthFailed):
+            raise self.last_exception
+        if not self.last_update_success:
+            raise ConfigEntryNotReady(
+                f"Failed to connect to FoxESS Cloud: {self.last_exception or 'initial refresh failed'}"
+            )
+
+    async def async_update_data(self) -> dict:
+        """Fetch data from FoxESS Cloud."""
+        global token, timeslice, LastHour, last_api, RestrictGetVar, xtzone, V1_Api, Evo
+        Evo = self.Evo
+        V1_Api = self.V1_Api
+        RestrictGetVar = self.RestrictGetVar
+        xtzone = self.xtzone
+        devicesn = self.devicesn
+        apiKey = self.apiKey
+        name = self.inverter_name
+        reduce_api_calls = self.reduce_api_calls
+        allData = self.allData
+        config_entry = self.config_entry
+
         _LOGGER.debug("Updating data from https://www.foxesscloud.com/")
-        global token, timeslice, LastHour
         hournow = datetime.now().strftime("%H")  # update hour now
         _LOGGER.debug("Time now: %s, last %s", hournow, LastHour)
-        tslice = timeslice[devicesn] + 1 # increment current device time slice
+        tslice = timeslice.get(devicesn, RETRY_NEXT_SLOT) + 1  # increment current device time slice
         timeslice[devicesn] = tslice
 
         main_poll_due = (tslice % 10 == 0) if reduce_api_calls else (tslice % 5 == 0)
@@ -257,16 +282,15 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
         retry_slot = RETRY_IN_10_MINS if reduce_api_calls else RETRY_IN_5_MINS
 
         # Independent timer for daily generation report (#324)
-        nonlocal daily_gen_timer
-        daily_gen_timer -= 1
-        if daily_gen_timer <= 0:
+        self.daily_gen_timer -= 1
+        if self.daily_gen_timer <= 0:
             _LOGGER.debug(
                 "Fetching OA Daily Generation Report on independent schedule for SN: %s",
                 devicesn,
             )
             try:
                 gen_error = await getReportDailyGeneration(
-                    hass, allData, apiKey, devicesn
+                    self.hass, allData, apiKey, devicesn
                 )
                 if gen_error is FetchResult.AUTH_FAILED:
                     if config_entry is not None:
@@ -279,11 +303,11 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                     _LOGGER.debug(
                         "getReportDailyGeneration failed for SN %s, retry in %s minutes",
                         devicesn,
-                        daily_gen_retry_interval,
+                        self.daily_gen_retry_interval,
                     )
-                    daily_gen_timer = daily_gen_retry_interval
+                    self.daily_gen_timer = self.daily_gen_retry_interval
                 else:
-                    daily_gen_timer = daily_gen_interval
+                    self.daily_gen_timer = self.daily_gen_interval
             except ConfigEntryAuthFailed:
                 raise
             except Exception as err:
@@ -291,9 +315,9 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                     "Unexpected error fetching daily generation for SN %s: %s, retry in %s minutes",
                     devicesn,
                     err,
-                    daily_gen_retry_interval,
+                    self.daily_gen_retry_interval,
                 )
-                daily_gen_timer = daily_gen_retry_interval
+                self.daily_gen_timer = self.daily_gen_retry_interval
 
         if main_poll_due:
             _LOGGER.debug("Main Poll, interval: %s, %s", devicesn, timeslice[devicesn])
@@ -303,9 +327,9 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                 # get device detail at startup, then periodically to save api calls
                 if Evo:
                     # Evo not currently in device detail, use list and fill partial blanks
-                    geterror = await getOADeviceList(hass, allData, devicesn, apiKey)
+                    geterror = await getOADeviceList(self.hass, allData, devicesn, apiKey)
                 else:
-                    geterror = await getOADeviceDetail(hass, allData, devicesn, apiKey)
+                    geterror = await getOADeviceDetail(self.hass, allData, devicesn, apiKey)
                 if geterror is FetchResult.AUTH_FAILED:
                     if config_entry is not None:
                         raise ConfigEntryAuthFailed("FoxESS API key rejected")
@@ -327,11 +351,11 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                     allData["online"] = True
                     if tslice == 0:
                         # read in battery settings if fitted at startup, then every 60 mins
-                        await getOABatterySettings(hass, allData, devicesn, apiKey)
+                        await getOABatterySettings(self.hass, allData, devicesn, apiKey)
                         await asyncio.sleep(1)  # OpenAPI demand
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(
-                        hass, allData, apiKey, devicesn, reduce_api_calls=reduce_api_calls
+                        self.hass, allData, apiKey, devicesn, reduce_api_calls=reduce_api_calls
                     )
                     if geterror is FetchResult.AUTH_FAILED:
                         if config_entry is not None:
@@ -344,7 +368,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
                     if not geterror:
                         if report_due:  # do at startup and periodically (every 15m or 60m)
                             await asyncio.sleep(1)  # OpenAPI demand limit
-                            geterror = await getReport(hass, allData, apiKey, devicesn)
+                            geterror = await getReport(self.hass, allData, apiKey, devicesn)
                             if geterror:
                                 _LOGGER.debug("getReport False")
                                 geterror = FetchResult.OK
@@ -412,25 +436,81 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
 
         return allData
 
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=DEFAULT_NAME,
-        update_method=async_update_data,
-        update_interval=SCAN_INTERVAL,
-        config_entry=config_entry,
+
+async def _async_setup_foxess(
+    hass,
+    config,
+    async_add_entities,
+    config_entry=None,
+    coordinator=None,
+):
+    """Shared setup logic for platform and config entry."""
+    global LastHour, timeslice, last_api, RestrictGetVar, xtzone, V1_Api, Evo
+    Evo = False
+    name = config.get(CONF_NAME)
+    deviceID = config.get(CONF_DEVICEID)
+    devicesn = config.get(CONF_DEVICESN)
+    apiKey = config.get(CONF_APIKEY)
+    ExtPV = config.get(CONF_EXTPV)
+    xtzone = config.get(CONF_XTZONE)
+    RestrictGetVar = config.get(CONF_GET_VARIABLES)
+    V1_Api = config.get(CONF_V1_API)
+    Evo = config.get(CONF_EVO)
+    energyGeneratedSanityCheck = float(
+        config.get(CONF_ENERGY_GENERATED_SANITY, DEFAULT_ENERGY_GENERATED_SANITY)
+        or DEFAULT_ENERGY_GENERATED_SANITY
     )
-    coordinator.devicesn = devicesn
-    coordinator.inverter_name = name
-    coordinator.deviceID = deviceID
+    reduce_api_calls = bool(
+        config.get(CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS)
+    )
+    _LOGGER.debug("API Key: %s", f"...{apiKey[-4:]}" if apiKey else "(unset)")
+    _LOGGER.debug("Device SN: %s", devicesn)
+    _LOGGER.debug("Device ID: %s", deviceID)
+    _LOGGER.debug("FoxESS Scan Interval: %s minutes", SCAN_MINUTES)
+    _LOGGER.debug("Cross Time Zone: %s", xtzone)
+    _LOGGER.debug("Restrict Variables: %s", RestrictGetVar)
+    _LOGGER.debug("Extended PV: %s", ExtPV)
+    _LOGGER.debug("v1 Api Calls: %s", V1_Api)
+    _LOGGER.debug("EVO: %s", Evo)
+    _LOGGER.debug("Energy Sanity Check: %s kWh", energyGeneratedSanityCheck)
+    _LOGGER.debug("Reduced API Calls Mode: %s", reduce_api_calls)
+    if V1_Api is not False:
+        V1_Api = True
+        _LOGGER.debug("v1 Api Calls Enabled")
+    else:
+        _LOGGER.warning("v1 Api Calls Disabled, using v0")
+    if ExtPV is not True:
+        ExtPV = False
+        _LOGGER.debug("Extended PV Disabled")
+    else:
+        _LOGGER.warning("Extended PV 1-18 strings enabled")
+    if RestrictGetVar is not True:
+        RestrictGetVar = False
+        _LOGGER.debug("Get Variables is full variable mode")
+    else:
+        _LOGGER.warning("Get Variables is in restricted mode")
 
-    await coordinator.async_refresh()
+    if devicesn and devicesn not in timeslice:
+        timeslice[devicesn] = RETRY_NEXT_SLOT
 
-    if not coordinator.last_update_success:
-        _LOGGER.error(
-            "FoxESS Cloud initialisation failed, Fatal Error - correct error and restart Home Assistant"
+    if coordinator is None:
+        coordinator = FoxDataUpdateCoordinator(
+            hass,
+            config,
+            config_entry=config_entry,
         )
-        return False
+        await coordinator.async_refresh()
+
+        if not coordinator.last_update_success:
+            _LOGGER.error(
+                "FoxESS Cloud initialisation failed, Fatal Error - correct error and restart Home Assistant"
+            )
+            return False
+
+    name = coordinator.inverter_name or name
+    deviceID = coordinator.deviceID or deviceID
+    if hasattr(coordinator, "ExtPV") and ExtPV is False:
+        ExtPV = coordinator.ExtPV
 
     async_add_entities(
         [
