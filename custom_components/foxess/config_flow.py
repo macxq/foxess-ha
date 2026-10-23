@@ -29,7 +29,8 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .sensor import (
+from .api import GetAuth, waitforAPI
+from .const import (
     _AUTH_ERRNO,
     _ENDPOINT_OA_DOMAIN,
     CONF_APIKEY,
@@ -45,14 +46,11 @@ from .sensor import (
     DEFAULT_ENERGY_GENERATED_SANITY,
     DEFAULT_NAME,
     DEFAULT_REDUCE_API_CALLS,
+    DOMAIN,
     YAML_CONFIGS_KEY,
-    GetAuth,
-    waitforAPI,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-DOMAIN = "foxess"
 
 _DEVICE_LIST_PATH = "/op/v0/device/list"
 _DEVICE_LIST_ENDPOINT = _ENDPOINT_OA_DOMAIN + _DEVICE_LIST_PATH

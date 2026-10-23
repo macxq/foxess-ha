@@ -295,16 +295,18 @@ async def test_get_raw_age_check_respects_reduce_api_calls(hass: HomeAssistant):
     mock_rest.async_update = AsyncMock()
 
     all_data_standard = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
-    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+    with patch.object(
+        sensor.FoxESSApiClient, "async_get_real_data", new_callable=AsyncMock, return_value=(sensor.FetchResult.OK, payload, 50)
+    ):
         # In standard mode (max_age=361), age=450 exceeds threshold -> online becomes False
         res = await sensor.getRaw(hass, all_data_standard, "api_key", "DEV_SN", reduce_api_calls=False)
         assert res == sensor.FetchResult.OK
         assert all_data_standard["online"] is False
 
     all_data_reduced = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
-    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+    with patch.object(
+        sensor.FoxESSApiClient, "async_get_real_data", new_callable=AsyncMock, return_value=(sensor.FetchResult.OK, payload, 50)
+    ):
         # In reduced mode (max_age=661), age=450 is within threshold -> online remains True
         res = await sensor.getRaw(hass, all_data_reduced, "api_key", "DEV_SN", reduce_api_calls=True)
         assert res == sensor.FetchResult.OK
@@ -329,14 +331,10 @@ async def test_get_raw_missing_or_invalid_timestamp(hass: HomeAssistant):
         ],
     }
 
-    mock_rest = MagicMock()
-    mock_rest.data = json.dumps(payload)
-    mock_rest.last_exception = None
-    mock_rest.async_update = AsyncMock()
-
     all_data = {"raw": {}, "addressbook": {"hasBattery": False}, "online": True}
-    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+    with patch.object(
+        sensor.FoxESSApiClient, "async_get_real_data", new_callable=AsyncMock, return_value=(sensor.FetchResult.OK, payload, 50)
+    ):
         res = await sensor.getRaw(hass, all_data, "api_key", "DEV_SN", reduce_api_calls=True)
         assert res == sensor.FetchResult.OK
         assert all_data["online"] is True
@@ -436,14 +434,10 @@ async def test_residual_energy_scaling_in_get_raw(hass: HomeAssistant):
             ],
         }
 
-        mock_rest = MagicMock()
-        mock_rest.data = json.dumps(payload)
-        mock_rest.last_exception = None
-        mock_rest.async_update = AsyncMock()
-
         all_data = {"raw": {}, "addressbook": {"hasBattery": True}, "online": True}
-        with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-             patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+        with patch.object(
+            sensor.FoxESSApiClient, "async_get_real_data", new_callable=AsyncMock, return_value=(sensor.FetchResult.OK, payload, 50)
+        ):
             res = await sensor.getRaw(hass, all_data, "api_key", "DEV_SN")
             assert res == sensor.FetchResult.OK
             assert all_data["raw"]["ResidualEnergy"] == pytest.approx(expected_val, 0.01), (
@@ -501,12 +495,9 @@ async def test_get_report_daily_generation_preserves_previous_values_when_fields
         },
     }
 
-    mock_rest = MagicMock()
-    mock_rest.data = json.dumps(payload)
-    mock_rest.async_update = AsyncMock()
-
-    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+    with patch.object(
+        sensor.FoxESSApiClient, "async_get_daily_generation", new_callable=AsyncMock, return_value=(sensor.FetchResult.OK, payload, 50)
+    ):
         res = await sensor.getReportDailyGeneration(hass, all_data, "key", "DEV_SN")
         assert res == sensor.FetchResult.OK
         # "value" must retain 15.5 instead of being reset to 0
@@ -525,13 +516,10 @@ async def test_get_report_daily_generation_auth_failed(hass: HomeAssistant):
         "msg": "token invalid",
     }
 
-    mock_rest = MagicMock()
-    mock_rest.data = json.dumps(payload)
-    mock_rest.async_update = AsyncMock()
-
     all_data = {"reportDailyGeneration": {}}
-    with patch("custom_components.foxess.sensor.RestData", return_value=mock_rest), \
-         patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock):
+    with patch.object(
+        sensor.FoxESSApiClient, "async_get_daily_generation", new_callable=AsyncMock, return_value=(sensor.FetchResult.AUTH_FAILED, payload, 50)
+    ):
         res = await sensor.getReportDailyGeneration(hass, all_data, "key", "DEV_SN")
         assert res == sensor.FetchResult.AUTH_FAILED
 
@@ -618,6 +606,81 @@ async def test_daily_generation_not_blocked_by_raw_or_report_failure(hass: HomeA
         await update_data()
         # Even though getRaw failed, daily generation must have been called
         assert mock_gen.call_count == 1
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_oa_battery_settings_with_and_without_battery(hass: HomeAssistant):
+    """Verify getOABatterySettings behaves correctly when battery fitted vs no battery."""
+    # Case 1: no battery
+    all_data_no_bat = {"addressbook": {"hasBattery": False}, "battery": {}}
+    res = await sensor.getOABatterySettings(hass, all_data_no_bat, "SN1", "key1")
+    assert res == sensor.FetchResult.OK
+    assert all_data_no_bat["battery"]["minSoc"] is None
+    assert all_data_no_bat["battery"]["minSocOnGrid"] is None
+
+    # Case 2: battery fitted, successful response
+    payload = {
+        "errno": 0,
+        "msg": "success",
+        "result": {"minSoc": 10, "minSocOnGrid": 15},
+    }
+    all_data_bat = {"addressbook": {"hasBattery": True}, "battery": {}}
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_battery_settings",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, payload, 50),
+    ):
+        res = await sensor.getOABatterySettings(hass, all_data_bat, "SN1", "key1")
+        assert res == sensor.FetchResult.OK
+        assert all_data_bat["battery"]["minSoc"] == 10
+        assert all_data_bat["battery"]["minSocOnGrid"] == 15
+
+    # Case 3: auth failed
+    auth_payload = {"errno": 41808, "msg": "token invalid"}
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_battery_settings",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.AUTH_FAILED, auth_payload, 50),
+    ):
+        res = await sensor.getOABatterySettings(hass, all_data_bat, "SN1", "key1")
+        assert res == sensor.FetchResult.AUTH_FAILED
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_report_parses_monthly_values_for_today(hass: HomeAssistant):
+    """Verify getReport parses monthly report index corresponding to today."""
+    import datetime
+
+    now = datetime.datetime.now()
+    today_index = now.day
+
+    # Build 31 values where the today_index has 12.34 kWh
+    values = [0.0] * 31
+    values[today_index - 1] = 12.34
+
+    payload = {
+        "errno": 0,
+        "msg": "success",
+        "result": [
+            {"variable": "generation", "values": values},
+            {"variable": "feedin", "values": values},
+        ],
+    }
+
+    all_data = {"report": {}}
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_report",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, payload, 50),
+    ):
+        res = await sensor.getReport(hass, all_data, "key", "DEV_SN")
+        assert res == sensor.FetchResult.OK
+        assert all_data["report"]["generation"] == 12.34
+        assert all_data["report"]["feedin"] == 12.34
+
 
 
 
