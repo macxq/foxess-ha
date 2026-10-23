@@ -2336,7 +2336,7 @@ class FoxESSTemp(FoxESSEntity):
 
 class FoxESSResidualEnergy(FoxESSEntity):
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_device_class = getattr(SensorDeviceClass, "ENERGY_STORAGE", None)
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def __init__(self, coordinator, name, deviceID):

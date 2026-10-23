@@ -193,6 +193,102 @@ def test_measurement_sensors_have_state_class():
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+def test_residual_energy_device_class_compatibility():
+    """Verify FoxESSResidualEnergy uses ENERGY_STORAGE or valid measurement device class (#390)."""
+    from homeassistant.components.sensor import (
+        DEVICE_CLASS_STATE_CLASSES,
+        SensorDeviceClass,
+        SensorStateClass,
+    )
+
+    coordinator = MagicMock()
+    entity = sensor.FoxESSResidualEnergy(coordinator, "Inverter", "DEV1")
+
+    # ENERGY_STORAGE is the proper class for residual battery storage in kWh
+    expected_dc = getattr(SensorDeviceClass, "ENERGY_STORAGE", None)
+    assert entity.device_class == expected_dc, (
+        f"FoxESSResidualEnergy device_class should be {expected_dc}, got {entity.device_class}"
+    )
+
+    if entity.device_class:
+        valid_states = DEVICE_CLASS_STATE_CLASSES.get(entity.device_class, set())
+        assert entity.state_class in valid_states, (
+            f"State class {entity.state_class} is not valid for {entity.device_class}. Valid: {valid_states}"
+        )
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_all_foxess_entities_comply_with_ha_device_class_and_state_class_rules():
+    """Audit all FoxESS entity classes against Home Assistant Core device class rules."""
+    from homeassistant.components.sensor import (
+        DEVICE_CLASS_STATE_CLASSES,
+        DEVICE_CLASS_UNITS,
+    )
+
+    coordinator = MagicMock()
+    coordinator.devicesn = "TEST_SN"
+    coordinator.inverter_name = "Test Inverter"
+    coordinator.data = {
+        "addressbook": {},
+        "online": True,
+        "raw": {},
+        "report": {},
+        "reportDailyGeneration": {},
+        "battery": {},
+    }
+
+    entities = [
+        sensor.FoxESSCurrent(coordinator, "Inv", "DEV1", "PV1 Current", "pv1-current", "pv1Current"),
+        sensor.FoxESSPower(coordinator, "Inv", "DEV1", "PV1 Power", "pv1-power", "pv1Power"),
+        sensor.FoxESSVolt(coordinator, "Inv", "DEV1", "PV1 Volt", "pv1-volt", "pv1Volt"),
+        sensor.FoxESSReactivePower(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSPowerFactor(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSFreq(coordinator, "Inv", "DEV1", "Grid Freq", "grid-freq-r", "gridFreqR"),
+        sensor.FoxESSEnergyGenerated(coordinator, "Inv", "DEV1", "Energy Generated", "energy-generated", "value"),
+        sensor.FoxESSEnergyThroughput(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergyGridConsumption(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergyFeedin(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergyBatCharge(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergyBatDischarge(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergyLoad(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSEnergySolar(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSMaxBatChargeCurrent(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSMaxBatDischargeCurrent(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSPVEnergyTotal(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSInverter(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSRunningState(coordinator, "Inv", "DEV1", "Inv State", "inv-state", "invState"),
+        sensor.FoxESSSolarPower(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSBatSoC(coordinator, "Inv", "DEV1", "Bat SoC", "bat-soc", "SoC"),
+        sensor.FoxESSBatMinSoC(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSBatMinSoConGrid(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSTemp(coordinator, "Inv", "DEV1", "Inv Temp", "inv-temp", "ambientTemperation"),
+        sensor.FoxESSResidualEnergy(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSResponseTime(coordinator, "Inv", "DEV1"),
+        sensor.FoxESSPowerString(coordinator, "Inv", "DEV1", "Gen Power", "gen-pwr", "generationPower"),
+    ]
+
+    for ent in entities:
+        dc = ent.device_class
+        sc = ent.state_class
+        unit = ent.native_unit_of_measurement
+        name = type(ent).__name__
+
+        if dc and sc:
+            valid_sc = DEVICE_CLASS_STATE_CLASSES.get(dc, set())
+            assert sc in valid_sc, (
+                f"{name} ({ent.name}): state_class '{sc}' is invalid for device_class '{dc}'. Valid: {valid_sc}"
+            )
+
+        if dc and unit:
+            valid_units = DEVICE_CLASS_UNITS.get(dc, set())
+            assert unit in valid_units, (
+                f"{name} ({ent.name}): unit '{unit}' is invalid for device_class '{dc}'. Valid: {valid_units}"
+            )
+
+
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 def test_energy_generated_sanity_check():
     """Verify daily Energy Generated entity ignores spikes exceeding threshold."""
     coordinator = MagicMock()
