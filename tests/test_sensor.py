@@ -12,8 +12,8 @@ from custom_components.foxess import sensor
 
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_auth_errno_constants():
-    """Verify _AUTH_ERRNO contains all FoxESS OpenAPI authentication failure codes."""
-    assert 40256 in sensor._AUTH_ERRNO
+    """Verify _AUTH_ERRNO contains only true FoxESS OpenAPI authentication failure codes."""
+    assert 40256 not in sensor._AUTH_ERRNO
     assert 41808 in sensor._AUTH_ERRNO
     assert 41809 in sensor._AUTH_ERRNO
 
