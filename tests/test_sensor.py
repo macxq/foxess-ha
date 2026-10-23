@@ -171,6 +171,67 @@ async def test_async_setup_foxess_populates_device_info_on_all_entities(hass: Ho
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_all_entities_ha_core_state_calculation_emits_no_warnings(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+):
+    """Verify that when Home Assistant Core calculates states for all entities, no warnings are emitted (#390)."""
+    import logging
+    config = {
+        sensor.CONF_NAME: "Dom",
+        sensor.CONF_DEVICEID: "DEV1",
+        sensor.CONF_DEVICESN: "662T602014NC048",
+        sensor.CONF_APIKEY: "testkey",
+    }
+    mock_add_entities = MagicMock()
+    with patch(
+        "custom_components.foxess.sensor.DataUpdateCoordinator.async_refresh",
+        new_callable=AsyncMock,
+    ):
+        await sensor._async_setup_foxess(hass, config, mock_add_entities)
+
+    caplog.clear()
+    sample_data = {
+        "online": True,
+        "raw": {
+            "ResidualEnergy": 5.2,
+            "pv1Current": 2.1,
+            "pv1Power": 0.5,
+            "pv1Volt": 230.0,
+            "gridFreqR": 50.0,
+            "ambientTemperation": 25.0,
+            "SoC": 80,
+            "reactivePower": 100,
+            "powerFactor": 99,
+        },
+        "report": {
+            "loads": 1.0,
+            "chargeEnergyToTal": 2.0,
+            "feedin": 0.5,
+            "gridConsumption": 1.0,
+            "dischargeEnergyToTal": 0.5,
+        },
+        "reportDailyGeneration": {"value": 10.0, "month": 150.0, "cumulative": 1000.0},
+        "battery": {"minSoc": 10, "minSocOnGrid": 15},
+        "addressbook": {},
+    }
+    for call in mock_add_entities.call_args_list:
+        entities = call[0][0]
+        for ent in entities:
+            ent.coordinator.data = sample_data
+            ent.hass = hass
+            ent.entity_id = f"sensor.foxess_{ent.unique_id.replace('-', '_')}"
+            ent._async_calculate_state()
+
+    sensor_warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.WARNING and record.name == "homeassistant.components.sensor"
+    ]
+    assert not sensor_warnings, f"Home Assistant emitted sensor warnings: {sensor_warnings}"
+
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 def test_measurement_sensors_have_state_class():
     """Verify sensors requiring statistics/Energy Dashboard have SensorStateClass.MEASUREMENT."""
     from homeassistant.components.sensor import SensorStateClass
