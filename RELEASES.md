@@ -2,16 +2,17 @@
 
 ## [v0.58]
 ```yaml
-title: "v0.58 - Fix Transient Illegal Timestamp (errno 40256) Polling Stall (#394)"
-date: "2026-10-23"
+title: "v0.58 - Fix Transient Illegal Timestamp (errno 40256) & Auth Stalls (#394, #397, #398)"
+date: "2026-10-26"
 ```
 
-### 🐛 Fix Transient Illegal Timestamp (errno 40256) (#394)
+### 🐛 Fix Transient Illegal Timestamp (errno 40256) & Polling Stalls (#394, #397, #398)
 
-• **Treat 40256 as Transient Error**: Removed errno `40256` (*illegal timestamp*) from `_AUTH_ERRNO`. Transient clock skew or FoxESS Cloud response delays during peak hours no longer trigger `ConfigEntryAuthFailed` or permanently stall polling with "Authentication expired".
+• **Treat 40256 as Transient Error**: Removed errno `40256` (*illegal timestamp*) from `_AUTH_ERRNO`. Transient clock skew or FoxESS Cloud response delays during peak hours no longer trigger `ConfigEntryAuthFailed` or permanently stall polling with "Authentication expired" (#394, #397, #398).
 • **Automatic Polling Recovery**: When FoxESS Cloud delays requests or returns `40256`, the integration logs a warning and automatically retries on the next poll cycle without requiring manual integration reload or Home Assistant restart.
 • **Reduced Client Timeout**: Decreased `DEFAULT_TIMEOUT` from 75 s to 50 s to ensure slow requests time out locally before exceeding the FoxESS OpenAPI ~60 s server timestamp signature tolerance window.
 • **Config Flow Clarification**: OpenAPI errno `40256` during device setup now maps to `cannot_connect` instead of misleading `invalid_auth`.
+• **Eco Mode Report Interval**: Corrected report polling schedule in reduced API calls mode (`reduceAPICalls`) to periodically poll every 60 minutes (`tslice % 60 == 0`) as documented.
 
 ## [v0.57]
 ```yaml
