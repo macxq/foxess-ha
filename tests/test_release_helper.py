@@ -9,6 +9,8 @@ from scripts.release_helper import (
     validate_manifest_and_releases,
     check_bump,
     extract_latest,
+    normalize_markdown_bullets,
+    clean_release_title,
 )
 
 SAMPLE_VALID_RELEASES = """# Releases
@@ -75,9 +77,10 @@ def test_parse_releases_valid(tmp_path: Path):
 
     release = parse_releases_file(rel_file)
     assert release["version"] == "v0.56"
-    assert release["title"] == "v0.56 - Native aiohttp Client & cloud_polling Refactor (#389)"
+    assert release["title"] == "Native aiohttp Client & cloud_polling Refactor (#389)"
+    assert release["raw_title"] == "v0.56 - Native aiohttp Client & cloud_polling Refactor (#389)"
     assert release["date"] == "2026-10-23"
-    assert "• Native aiohttp Session" in release["body"]
+    assert "- Native aiohttp Session" in release["body"]
 
 
 def test_parse_releases_takes_latest(tmp_path: Path):
@@ -86,7 +89,7 @@ def test_parse_releases_takes_latest(tmp_path: Path):
 
     release = parse_releases_file(rel_file)
     assert release["version"] == "v0.56"
-    assert release["title"] == "v0.56 - Latest Release"
+    assert release["title"] == "Latest Release"
     assert release["body"] == "Latest body."
 
 
@@ -160,8 +163,8 @@ def test_extract_latest_json(tmp_path: Path):
     output = extract_latest(rel_file)
     data = json.loads(output)
     assert data["version"] == "v0.56"
-    assert "Native aiohttp" in data["title"]
-    assert "• Native aiohttp Session" in data["body"]
+    assert data["title"] == "Native aiohttp Client & cloud_polling Refactor (#389)"
+    assert "- Native aiohttp Session" in data["body"]
 
 
 def test_parse_releases_yaml_syntax_error_line_number(tmp_path: Path):
@@ -199,7 +202,34 @@ Patch notes.
 
     release = parse_releases_file(rel_file)
     assert release["version"] == "v0.56.1"
-    assert release["title"] == "v0.56.1 - Patch Release"
+    assert release["title"] == "Patch Release"
+    assert release["raw_title"] == "v0.56.1 - Patch Release"
+
+
+def test_normalize_markdown_bullets():
+    raw = """• First item
+• Second item
+  • Indented sub-item
+- Already a dash
+* Asterisk list item
+Plain paragraph line"""
+    expected = """- First item
+- Second item
+  - Indented sub-item
+- Already a dash
+* Asterisk list item
+Plain paragraph line"""
+    assert normalize_markdown_bullets(raw) == expected
+
+
+def test_clean_release_title():
+    assert clean_release_title("v0.58 - Bug Fix (#394)", "v0.58") == "Bug Fix (#394)"
+    assert clean_release_title("v0.58: Bug Fix (#394)", "v0.58") == "Bug Fix (#394)"
+    assert clean_release_title("[v0.58] - Bug Fix (#394)", "v0.58") == "Bug Fix (#394)"
+    assert clean_release_title("Bug Fix (#394)", "v0.58") == "Bug Fix (#394)"
+    assert clean_release_title("v0.59 - Other Version", "v0.58") == "v0.59 - Other Version"
+    # When title is just the version itself, keep it
+    assert clean_release_title("v0.58", "v0.58") == "v0.58"
 
 
 def test_get_git_tags_failure_raises(monkeypatch: pytest.MonkeyPatch):
