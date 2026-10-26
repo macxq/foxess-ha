@@ -12,8 +12,8 @@ from custom_components.foxess import sensor
 
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_auth_errno_constants():
-    """Verify _AUTH_ERRNO contains all FoxESS OpenAPI authentication failure codes."""
-    assert 40256 in sensor._AUTH_ERRNO
+    """Verify _AUTH_ERRNO contains only true FoxESS OpenAPI authentication failure codes."""
+    assert 40256 not in sensor._AUTH_ERRNO
     assert 41808 in sensor._AUTH_ERRNO
     assert 41809 in sensor._AUTH_ERRNO
 
@@ -837,6 +837,50 @@ async def test_get_report_parses_monthly_values_for_today(hass: HomeAssistant):
         assert res == sensor.FetchResult.OK
         assert all_data["report"]["generation"] == 12.34
         assert all_data["report"]["feedin"] == 12.34
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_reduced_api_calls_report_interval(hass: HomeAssistant):
+    """Verify report query executes every 60 minutes when reduceAPICalls is enabled."""
+    config = {
+        sensor.CONF_NAME: "Reduced Inverter",
+        sensor.CONF_DEVICEID: "DEV_RED",
+        sensor.CONF_DEVICESN: "SN_RED",
+        sensor.CONF_APIKEY: "key_red",
+        sensor.CONF_REDUCE_API_CALLS: True,
+    }
+    mock_add = MagicMock()
+    with patch("custom_components.foxess.sensor.DataUpdateCoordinator.async_refresh", new_callable=AsyncMock):
+        await sensor._async_setup_foxess(hass, config, mock_add)
+
+    coordinator = mock_add.call_args[0][0][0].coordinator
+    update_data = coordinator.update_method
+
+    with (
+        patch("custom_components.foxess.sensor.getOADeviceDetail", return_value=sensor.FetchResult.OK) as mock_detail,
+        patch("custom_components.foxess.sensor.getRaw", return_value=sensor.FetchResult.OK) as mock_raw,
+        patch("custom_components.foxess.sensor.getReport", return_value=sensor.FetchResult.OK) as mock_report,
+        patch("custom_components.foxess.sensor.getReportDailyGeneration", return_value=sensor.FetchResult.OK),
+        patch("custom_components.foxess.sensor.waitforAPI", new_callable=AsyncMock),
+    ):
+        def side_effect_detail(h, allData, sn, key):
+            allData["addressbook"]["status"] = "1"
+            return sensor.FetchResult.OK
+        mock_detail.side_effect = side_effect_detail
+
+        # First run (tslice = 0): report is due on startup
+        await update_data()
+        assert mock_report.call_count == 1
+
+        # Minutes 1 to 59: report should NOT run
+        for _ in range(59):
+            await update_data()
+        assert mock_report.call_count == 1
+
+        # Minute 60 (tslice = 60): report is due
+        await update_data()
+        assert mock_report.call_count == 2
+
 
 
 

@@ -252,7 +252,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
 
         main_poll_due = (tslice % 10 == 0) if reduce_api_calls else (tslice % 5 == 0)
         detail_due = (tslice % 30 == 0) if reduce_api_calls else (tslice % 15 == 0)
-        report_due = (tslice == 0) if reduce_api_calls else (tslice % 15 == 0)
+        report_due = (tslice % 60 == 0) if reduce_api_calls else (tslice % 15 == 0)
         retry_slot = RETRY_IN_10_MINS if reduce_api_calls else RETRY_IN_5_MINS
 
         # Independent timer for daily generation report (#324)

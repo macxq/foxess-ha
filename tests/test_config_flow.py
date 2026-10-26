@@ -401,12 +401,12 @@ async def test_fetch_device_list_invalid_auth_401(hass: HomeAssistant) -> None:
     assert devices == []
 
 
-@pytest.mark.parametrize("auth_errno", [40256, 41808, 41809])
+@pytest.mark.parametrize("auth_errno", [41808, 41809])
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_fetch_device_list_auth_errno(
     hass: HomeAssistant, auth_errno: int
 ) -> None:
-    """An OpenAPI response with an auth errno (40256, 41808, 41809) maps to invalid_auth."""
+    """An OpenAPI response with an auth errno (41808, 41809) maps to invalid_auth."""
     with patch(
         "custom_components.foxess.config_flow.async_get_clientsession",
         return_value=_make_mock_session(json_return_value={"errno": auth_errno}),
@@ -414,6 +414,23 @@ async def test_fetch_device_list_auth_errno(
         devices, error = await _fetch_device_list(hass, "bad-key")
 
     assert error == "invalid_auth"
+    assert devices == []
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_fetch_device_list_timestamp_errno_maps_to_cannot_connect(
+    hass: HomeAssistant,
+) -> None:
+    """An OpenAPI response with timestamp errno 40256 maps to cannot_connect, not invalid_auth."""
+    with patch(
+        "custom_components.foxess.config_flow.async_get_clientsession",
+        return_value=_make_mock_session(
+            json_return_value={"errno": 40256, "msg": "illegal timestamp"}
+        ),
+    ):
+        devices, error = await _fetch_device_list(hass, "valid-key-but-slow-cloud")
+
+    assert error == "cannot_connect"
     assert devices == []
 
 

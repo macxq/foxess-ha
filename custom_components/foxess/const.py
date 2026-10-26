@@ -24,7 +24,7 @@ DEFAULT_REDUCE_API_CALLS = False
 # Timing and Intervals
 SCAN_MINUTES = 1  # number of minutes between coordinator refresh evaluations
 SCAN_INTERVAL = timedelta(minutes=SCAN_MINUTES)
-DEFAULT_TIMEOUT = 75
+DEFAULT_TIMEOUT = 50
 RETRY_NEXT_SLOT = -1
 RETRY_IN_5_MINS = 25
 RETRY_IN_10_MINS = 20
@@ -40,8 +40,8 @@ _ENDPOINT_OA_DEVICE_VARIABLES_V1 = "/op/v1/device/real/query"
 _ENDPOINT_OA_DAILY_GENERATION = "/op/v0/device/generation?sn="
 _ENDPOINT_OA_DEVICE_LIST = "/op/v0/device/list"
 
-# Error numbers for authentication failure
-_AUTH_ERRNO = {40256, 41808, 41809}
+# Error numbers for authentication failure (invalid/missing token)
+_AUTH_ERRNO = {41808, 41809}
 
 # Key under hass.data where YAML-configured device info is stored
 YAML_CONFIGS_KEY = "foxess_yaml_configs"
