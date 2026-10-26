@@ -46,6 +46,25 @@ def parse_yaml_block(yaml_text: str, start_line: int = 1, file_path: str = "RELE
     return data
 
 
+def normalize_markdown_bullets(text: str) -> str:
+    """Normalize unicode bullet points (•) at line starts to standard Markdown list items (-).
+
+    This ensures Markdown parsers (e.g. Home Assistant HACS, GitHub) treat each entry
+    as an unordered list item with a newline instead of collapsing lines into a single run-on paragraph.
+    """
+    return re.sub(r"^([ \t]*)•[ \t]*", r"\1- ", text, flags=re.MULTILINE)
+
+
+def clean_release_title(title: str, version: str) -> str:
+    """Strip redundant leading version prefix like 'v0.58 - ' or '[v0.58]: ' from title.
+
+    Prevents Home Assistant HACS update changelog from displaying redundant version
+    headings like 'v0.58 - v0.58 - Fix ...'.
+    """
+    cleaned = re.sub(r"^\[?" + re.escape(version) + r"\]?\s*[-:]\s*", "", title).strip()
+    return cleaned or title
+
+
 def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
     """Parse the latest release entry from a releases Markdown file."""
     path = Path(releases_path)
@@ -83,7 +102,8 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
     yaml_start_line = content[:yaml_start_in_file].count("\n") + 1
 
     metadata = parse_yaml_block(yaml_match.group(1), start_line=yaml_start_line, file_path=str(path))
-    if not metadata.get("title", "").strip():
+    raw_title = metadata.get("title", "").strip()
+    if not raw_title:
         raise ValueError(
             f"Release section for {version} in {path} is missing required 'title' in YAML metadata."
         )
@@ -93,9 +113,13 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
     if not body:
         raise ValueError(f"Release section for {version} in {path} body cannot be empty.")
 
+    body = normalize_markdown_bullets(body)
+    title = clean_release_title(raw_title, version)
+
     result = {
         "version": version,
-        "title": metadata["title"],
+        "title": title,
+        "raw_title": raw_title,
         "date": metadata.get("date", ""),
         "body": body,
     }
