@@ -80,6 +80,14 @@
       "work_mode": {
         "name": "Work mode"
       }
+    },
+    "number": {
+      "min_soc": {
+        "name": "Min SoC"
+      },
+      "min_soc_on_grid": {
+        "name": "Min SoC on grid"
+      }
     }
   }
 }
