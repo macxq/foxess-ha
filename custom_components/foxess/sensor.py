@@ -233,6 +233,7 @@ async def _async_setup_foxess(hass, config, async_add_entities, config_entry=Non
     daily_gen_timer = 0
     allData = {
         "report": {},
+        "report_date": None,
         "reportDailyGeneration": {},
         "raw": {},
         "battery": {},
@@ -1019,6 +1020,7 @@ async def getReport(hass, allData, apiKey, devicesn):
             _LOGGER.debug(
                 "OA Report Variable: %s, Total: %s", variableName, cumulative_total
             )
+        allData["report_date"] = now.date()
         return FetchResult.OK
     else:
         _LOGGER.debug("OA Report Bad Response: %s", response)
@@ -2097,6 +2099,14 @@ class FoxESSEnergySolar(FoxESSEntity):
         if self._last_day != today:
             self._last_day = today
             self._max_today = 0.0
+
+        # The report is cached and only refetched every 15 (or 60) minutes, so
+        # just after midnight it still holds yesterday's totals. Using them
+        # would seed the ratchet with yesterday's value and pin the sensor
+        # there for the whole day.
+        report_date = self.coordinator.data.get("report_date")
+        if report_date is not None and report_date != today:
+            return round(self._max_today, 3)
 
         if "loads" not in self.coordinator.data["report"]:
             loads = 0

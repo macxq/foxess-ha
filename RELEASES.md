@@ -1,5 +1,15 @@
 # Releases
 
+## [v0.59]
+```yaml
+title: "Fix Solar Sensor Stale Report After Midnight (#400, #402)"
+date: "2026-10-27"
+```
+
+### 🐛 Fix Solar Sensor Stale Report After Midnight (#400, #402)
+
+- **Ignore Stale Cached Report**: In `FoxESSEnergySolar`, ignore cached daily report from previous day until a fresh report is fetched after midnight. Prevents the monotonic ratchet from locking the solar energy sensor to yesterday's cumulative total for the entire day (@atihauber).
+
 ## [v0.58]
 ```yaml
 title: "Fix Transient Illegal Timestamp (errno 40256) & Auth Stalls (#394, #397, #398)"

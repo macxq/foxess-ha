@@ -422,6 +422,40 @@ def test_energy_solar_monotonic_ratchet_and_sanity():
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_solar_should_ignore_stale_report_after_midnight():
+    """A cached report from yesterday must not re-seed the ratchet after rollover."""
+    import datetime
+    coordinator = MagicMock()
+    solar_entity = sensor.FoxESSEnergySolar(coordinator, "Inverter", "DEV1")
+
+    day1 = datetime.date(2026, 10, 26)
+    day2 = datetime.date(2026, 10, 27)
+
+    def report(loads):
+        return {
+            "loads": loads,
+            "chargeEnergyToTal": 0.0,
+            "feedin": 0.0,
+            "gridConsumption": 0.0,
+            "dischargeEnergyToTal": 0.0,
+        }
+
+    with patch("homeassistant.util.dt.now") as mock_now:
+        mock_now.return_value.date.return_value = day1
+        coordinator.data = {"report": report(22.1), "report_date": day1}
+        assert solar_entity.native_value == 22.1
+
+        mock_now.return_value.date.return_value = day2
+        assert solar_entity.native_value == 0.0
+
+        coordinator.data = {"report": report(0.3), "report_date": day2}
+        assert solar_entity.native_value == 0.3
+
+        coordinator.data = {"report": report(7.7), "report_date": day2}
+        assert solar_entity.native_value == 7.7
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_get_raw_age_check_respects_reduce_api_calls(hass: HomeAssistant):
     """Verify getRaw tolerates older samples (up to 661s) when reduce_api_calls is True."""
     import time
