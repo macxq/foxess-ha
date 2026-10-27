@@ -74,5 +74,12 @@
       "cannot_connect": "Unable to connect to FoxESS Cloud",
       "invalid_auth": "Invalid API key"
     }
+  },
+  "entity": {
+    "select": {
+      "work_mode": {
+        "name": "Work mode"
+      }
+    }
   }
 }
