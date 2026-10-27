@@ -88,6 +88,11 @@
       "min_soc_on_grid": {
         "name": "Min SoC on grid"
       }
+    },
+    "switch": {
+      "mode_scheduler": {
+        "name": "Mode scheduler"
+      }
     }
   }
 }
