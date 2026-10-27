@@ -231,6 +231,9 @@ class FoxDataUpdateCoordinator(DataUpdateCoordinator):
                 "status": "3",
             },
             "online": False,
+            "workMode": None,
+            "schedulerEnabled": False,
+            "schedulerGroups": [],
         }
 
         if self.devicesn:
@@ -353,6 +356,8 @@ class FoxDataUpdateCoordinator(DataUpdateCoordinator):
                         # read in battery settings if fitted at startup, then every 60 mins
                         await getOABatterySettings(self.hass, allData, devicesn, apiKey)
                         await asyncio.sleep(1)  # OpenAPI demand
+                        if allData.get("addressbook", {}).get("hasBattery"):
+                            await getOAWorkModeAndScheduler(self.hass, allData, devicesn, apiKey)
                     # main real time data fetch, followed by reports
                     geterror = await getRaw(
                         self.hass, allData, apiKey, devicesn, reduce_api_calls=reduce_api_calls
@@ -1047,6 +1052,40 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
         allData["battery"]["minSoc"] = None
         allData["battery"]["minSocOnGrid"] = None
         return FetchResult.OK
+
+
+async def getOAWorkModeAndScheduler(hass, allData, devicesn, apiKey):
+    """Fetch Work Mode and Scheduler flag/groups from FoxESS Cloud."""
+    client = FoxESSApiClient(hass)
+    try:
+        res, resp, _ = await client.async_get_work_mode(devicesn, apiKey)
+        if res is FetchResult.OK and resp and resp.get("errno") == 0:
+            result = resp.get("result", {})
+            work_mode = (
+                result.get("values", {}).get("WorkMode")
+                if isinstance(result.get("values"), dict)
+                else result.get("value")
+            )
+            if work_mode:
+                allData["workMode"] = work_mode
+        await asyncio.sleep(1)
+
+        res_flag, resp_flag, _ = await client.async_get_scheduler_flag(devicesn, apiKey)
+        if res_flag is FetchResult.OK and resp_flag and resp_flag.get("errno") == 0:
+            result_flag = resp_flag.get("result", {})
+            enable = result_flag.get("enable")
+            if enable is not None:
+                allData["schedulerEnabled"] = bool(enable)
+        await asyncio.sleep(1)
+
+        res_grp, resp_grp, _ = await client.async_get_scheduler_groups(devicesn, apiKey)
+        if res_grp is FetchResult.OK and resp_grp and resp_grp.get("errno") == 0:
+            result_grp = resp_grp.get("result", {})
+            groups = result_grp.get("groups")
+            if isinstance(groups, list):
+                allData["schedulerGroups"] = groups
+    except Exception as err:
+        _LOGGER.debug("Error fetching work mode or scheduler settings: %s", err)
 
 
 async def getReport(hass, allData, apiKey, devicesn):
