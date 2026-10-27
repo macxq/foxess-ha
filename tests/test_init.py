@@ -32,12 +32,14 @@ async def test_async_setup_and_unload_entry(hass):
         assert "test_entry_id" in hass.data[DOMAIN]
         assert "coordinator" in hass.data[DOMAIN]["test_entry_id"]
         assert "client" in hass.data[DOMAIN]["test_entry_id"]
+        assert hass.services.has_service(DOMAIN, "set_schedule")
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
         assert entry.state == ConfigEntryState.NOT_LOADED
         assert "test_entry_id" not in hass.data.get(DOMAIN, {})
+        assert not hass.services.has_service(DOMAIN, "set_schedule")
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")

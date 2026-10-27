@@ -1,0 +1,29 @@
+set_schedule:
+  name: Set schedule
+  description: Overwrite the FoxESS inverter mode schedule with configured time segments.
+  fields:
+    device_sn:
+      name: Inverter serial number
+      description: The FoxESS deviceSN to apply the schedule to.
+      required: true
+      example: "60BH1234567"
+      selector:
+        text:
+    groups:
+      name: Schedule groups
+      description: List of schedule groups defining time periods and work modes.
+      required: true
+      selector:
+        object:
+    enable:
+      name: Enable scheduler
+      description: Automatically enable the scheduler flag on the inverter.
+      default: true
+      selector:
+        boolean:
+    is_default:
+      name: Is default schedule
+      description: Whether this represents the default schedule.
+      default: false
+      selector:
+        boolean:
