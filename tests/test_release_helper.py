@@ -204,6 +204,47 @@ Patch notes.
     assert release["version"] == "v0.56.1"
     assert release["title"] == "Patch Release"
     assert release["raw_title"] == "v0.56.1 - Patch Release"
+    assert release["prerelease"] is False
+
+
+def test_parse_releases_prerelease_detection(tmp_path: Path):
+    content = """# Releases
+
+## [v0.60-beta.1]
+```yaml
+title: "v0.60-beta.1 - Beta Release"
+date: "2026-10-27"
+```
+
+Beta notes.
+"""
+    rel_file = tmp_path / "RELEASES.md"
+    rel_file.write_text(content)
+
+    release = parse_releases_file(rel_file)
+    assert release["version"] == "v0.60-beta.1"
+    assert release["title"] == "Beta Release"
+    assert release["prerelease"] is True
+
+
+def test_parse_releases_explicit_prerelease_flag(tmp_path: Path):
+    content = """# Releases
+
+## [v0.60]
+```yaml
+title: "v0.60 - Staging Release"
+date: "2026-10-27"
+prerelease: "true"
+```
+
+Staging notes.
+"""
+    rel_file = tmp_path / "RELEASES.md"
+    rel_file.write_text(content)
+
+    release = parse_releases_file(rel_file)
+    assert release["version"] == "v0.60"
+    assert release["prerelease"] is True
 
 
 def test_normalize_markdown_bullets():
