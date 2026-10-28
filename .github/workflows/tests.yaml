@@ -70,7 +70,13 @@ jobs:
           python3 scripts/release_helper.py extract-latest > release_info.json
           VERSION=$(python3 -c "import json; print(json.load(open('release_info.json'))['version'])")
           TITLE=$(python3 -c "import json; print(json.load(open('release_info.json'))['title'])")
+          PRERELEASE=$(python3 -c "import json; print(json.load(open('release_info.json')).get('prerelease', False))")
           python3 -c "import json; open('notes.md', 'w').write(json.load(open('release_info.json'))['body'])"
 
-          echo "Publishing release $VERSION: $TITLE"
-          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$TITLE" --notes-file notes.md
+          EXTRA_FLAGS=""
+          if [ "$PRERELEASE" = "True" ] || [ "$PRERELEASE" = "true" ]; then
+            EXTRA_FLAGS="--prerelease"
+          fi
+
+          echo "Publishing release $VERSION: $TITLE (extra flags: $EXTRA_FLAGS)"
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$TITLE" --notes-file notes.md $EXTRA_FLAGS

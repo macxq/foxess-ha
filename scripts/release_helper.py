@@ -73,9 +73,9 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
 
     content = path.read_text(encoding="utf-8")
 
-    # Match release sections: ## [v0.56], ## [v0.56.1], ## v0.56, etc.
+    # Match release sections: ## [v0.56], ## [v0.56.1], ## [v0.60.0b1], ## v0.56, etc.
     heading_pattern = re.compile(
-        r"^##\s+\[?(v\d+(?:\.\d+)+(?:-[0-9A-Za-z.-]+)?)\]?\s*$", re.MULTILINE
+        r"^##\s+\[?(v\d+(?:\.\d+)+(?:[.-]?[0-9A-Za-z.-]+)?)\]?\s*$", re.MULTILINE
     )
     matches = list(heading_pattern.finditer(content))
     if not matches:
@@ -116,11 +116,22 @@ def parse_releases_file(releases_path: Path | str) -> dict[str, str]:
     body = normalize_markdown_bullets(body)
     title = clean_release_title(raw_title, version)
 
+    try:
+        from awesomeversion import AwesomeVersion
+        av = AwesomeVersion(version)
+        is_prerelease = bool(av.beta or av.dev)
+    except Exception:
+        is_prerelease = bool(re.search(r"[-b](?:beta|alpha|rc|\d)", version, re.IGNORECASE))
+
+    if "prerelease" in metadata:
+        is_prerelease = metadata["prerelease"].lower() in ("true", "1", "yes")
+
     result = {
         "version": version,
         "title": title,
         "raw_title": raw_title,
         "date": metadata.get("date", ""),
+        "prerelease": is_prerelease,
         "body": body,
     }
     return result

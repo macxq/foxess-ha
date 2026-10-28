@@ -49,6 +49,7 @@ You can adjust settings for each configured inverter at any time without restart
    - **API Key:** Update or change your FoxESS API key.
    - **Daily energy sanity check threshold (kWh) (`energyGeneratedSanityCheck`):** Maximum expected daily energy generation in kWh (default: `100.0` kWh). Readings above this threshold are ignored to protect Energy Dashboard statistics from corrupted spikes (e.g. when FoxESS Cloud erroneously reports lifetime yield instead of daily yield).
    - **Reduced API calls mode (Eco mode) (`reduceAPICalls`):** Halves API polling frequency (10-minute intervals for real-time telemetry, 30-minute intervals for status details, 60-minute intervals for reports) to prevent hitting the FoxESS 1,440 daily call quota. Recommended for multi-inverter setups or systems connected to external Virtual Power Plant (VPP) providers (e.g. Amber Electric, Evergen).
+   - **Show zero when inverter is offline (`show_unknown_zero`):** When enabled, power, current, and voltage sensors cleanly report `0.0` instead of falling into `unavailable`/`unknown` when the inverter or micro-inverter is offline after sunset, and cumulative energy totals are retained.
    - **Extended PV strings (`extendPV`):** Enable for Fox R series or inverters supporting more than 6 PV strings (reads PV strings 7–18).
    - **FoxESS EVO series mode (`Evo`):** Enable if using a FoxESS EVO series inverter where device details are incomplete.
    - **Cross Time Zone adjustment (`xtZone`):** Enable if inverter timestamps use a different time zone than Home Assistant.
@@ -66,11 +67,12 @@ You can adjust settings for each configured inverter at any time without restart
 | `name` | string | `"FoxESS"` | Friendly name prefix for inverter entities and device title. |
 | `energyGeneratedSanityCheck` | float | `100.0` | Daily generation ceiling (kWh). Spikes exceeding this value are rejected to safeguard Energy Dashboard statistics. |
 | `reduceAPICalls` | boolean | `false` | Enable reduced API call frequency (10-minute polling) to conserve daily quota on accounts with multiple inverters or external VPP providers. |
+| `show_unknown_zero` | boolean | `false` | When enabled, reports 0 for power, current, and voltage instead of unavailable when the inverter is offline (e.g. micro-inverters at night) and retains cumulative energy totals. |
 | `extendPV` | boolean | `false` | Enable to read additional PV strings 7–18 for inverters with >6 strings. |
 | `Evo` | boolean | `false` | Enable support for FoxESS EVO series inverters. |
 | `xtZone` | boolean | `false` | Adjust time zone offset if inverter timestamps differ from HA local time. |
 | `Restrict` | boolean | `false` | Limit API variable queries to prevent timeout/payload issues on certain inverters. |
-| `Use_V1_Api` | boolean | `true` | Use OpenAPI v1 endpoints (`/op/v1/device/...`) for real-time telemetry. |
+| `Use_V1_Api` | boolean | `true` | Use modern OpenAPI v1 endpoints (`/op/v1/device/...`) for real-time telemetry. Set to `false` to fall back to legacy v0 endpoints (`/op/v0/device/...`) if required by older accounts. |
 
 ---
 
@@ -119,9 +121,67 @@ sensor:
 ```
 
 </details>
- 
 
 
+## 🔋 Battery Controls, Work Modes & Scheduling
+
+For systems equipped with a battery, this integration exposes direct controls and automation services via FoxESS Cloud OpenAPI:
+
+### 🎛️ Control Entities
+
+| Entity | Platform | Domain | Description |
+|---|---|---|---|
+| **FoxESS - Work Mode** | `select` | `select` | Switch inverter operating mode: `Self-Use`, `Feed-in`, `Backup`, or `Peak Shaving`. Automatically rejects manual changes when Mode Scheduler is active to prevent cloud conflict error 44096. |
+| **FoxESS - Min SoC** | `number` | `number` | Minimum battery State of Charge off-grid (10–100%, step 1). Clamped automatically so `Min SoC <= Min SoC on Grid`. |
+| **FoxESS - Min SoC on Grid** | `number` | `number` | Minimum battery State of Charge while connected to grid (10–100%, step 1). Clamped automatically so `Min SoC on Grid >= Min SoC`. |
+| **FoxESS - Mode Scheduler** | `switch` | `switch` | Toggle cloud scheduler on/off. Configured scheduler groups and force charge times are exposed in entity attributes. |
+
+> [!NOTE]
+> For PV-only installations without a battery (`hasBattery: false`), battery controls and scheduler platforms are automatically skipped.
+
+---
+
+### ⚡ Automation Services
+
+FoxESS Cloud OpenAPI offers two distinct approaches for battery charging and scheduling depending on the inverter model:
+- **New API (Mode Scheduler):** Supported by modern inverters (H1 G2, H3, KH, H3-Pro, etc.). Uses `/op/v1/device/scheduler/...` and `/op/v2/device/scheduler/...` to define dynamic multi-segment schedules with selectable work modes (`ForceCharge`, `ForceDischarge`, `SelfUse`).
+- **Legacy API (Force Charge Times):** Supported by older generation inverters and All-in-One series (e.g. AIO-H3, AC1) where the FoxESS Cloud does not support the Mode Scheduler module (returning an unsupported scheduler error). Uses `/op/v0/device/battery/forceChargeTime/get` and `/set` to configure two grid force-charge time periods.
+
+#### 1. `foxess.set_schedule` (New Mode Scheduler API)
+Overwrites the FoxESS Mode Scheduler with configured time slots and operating modes (ideal for dynamic tariff charging, e.g. Octopus Agile, Nord Pool, Tibber):
+
+```yaml
+action: foxess.set_schedule
+data:
+  device_sn: "60BH1234567"
+  enable: true
+  groups:
+    - enable: 1
+      startHour: 2
+      startMinute: 0
+      endHour: 5
+      endMinute: 0
+      workMode: "ForceCharge"
+      minSocOnGrid: 100
+      fdPwr: 0
+```
+
+#### 2. `foxess.set_force_charge_times` (Legacy Force Charge API)
+Configures grid force-charging time windows for inverters supporting the legacy `forceChargeTime` API (such as AIO-H3, AC1, and models without Mode Scheduler support):
+
+```yaml
+action: foxess.set_force_charge_times
+data:
+  device_sn: "60BH1234567"
+  enable_1: true
+  start_time_1: "02:00"
+  end_time_1: "05:00"
+  enable_2: false
+  start_time_2: "14:00"
+  end_time_2: "16:00"
+```
+
+---
 
 ## 📊 Provided entities
 

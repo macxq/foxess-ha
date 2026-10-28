@@ -840,6 +840,47 @@ async def test_get_oa_battery_settings_with_and_without_battery(hass: HomeAssist
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_oa_work_mode_and_scheduler(hass: HomeAssistant):
+    """Verify getOAWorkModeAndScheduler fetches and populates workMode, schedulerEnabled, and schedulerGroups."""
+    all_data = {
+        "workMode": None,
+        "schedulerEnabled": False,
+        "schedulerGroups": [],
+    }
+
+    wm_payload = {"errno": 0, "result": {"values": {"WorkMode": "SelfUse"}}}
+    flag_payload = {"errno": 0, "result": {"enable": 1}}
+    groups_payload = {
+        "errno": 0,
+        "result": {
+            "groups": [{"enable": 1, "startHour": 2, "workMode": "ForceCharge"}]
+        },
+    }
+
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_work_mode",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, wm_payload, 50),
+    ), patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_flag",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, flag_payload, 50),
+    ), patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_groups",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, groups_payload, 50),
+    ):
+        await sensor.getOAWorkModeAndScheduler(hass, all_data, "SN1", "key1")
+        assert all_data["workMode"] == "SelfUse"
+        assert all_data["schedulerEnabled"] is True
+        assert len(all_data["schedulerGroups"]) == 1
+        assert all_data["schedulerGroups"][0]["workMode"] == "ForceCharge"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_get_report_parses_monthly_values_for_today(hass: HomeAssistant):
     """Verify getReport parses monthly report index corresponding to today."""
     import datetime
@@ -914,6 +955,45 @@ async def test_reduced_api_calls_report_interval(hass: HomeAssistant):
         # Minute 60 (tslice = 60): report is due
         await update_data()
         assert mock_report.call_count == 2
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_show_unknown_zero_offline_behavior(hass: HomeAssistant):
+    """Test show_unknown_zero option when inverter or micro-inverter is offline."""
+    coordinator_zero = MagicMock()
+    coordinator_zero.config = {sensor.CONF_SHOW_UNKNOWN_ZERO: True}
+    coordinator_zero.data = {"online": False, "raw": {}, "reportDailyGeneration": {}, "report": {}}
+
+    power = sensor.FoxESSPower(coordinator_zero, "FoxESS", "DEV1", "PV Power", "pv-power", "pvPower")
+    current = sensor.FoxESSCurrent(coordinator_zero, "FoxESS", "DEV1", "PV Current", "pv-current", "pvCurrent")
+    volt = sensor.FoxESSVolt(coordinator_zero, "FoxESS", "DEV1", "PV Volt", "pv-volt", "pvVolt")
+    power_str = sensor.FoxESSPowerString(coordinator_zero, "FoxESS", "DEV1", "Meter2 Power", "m2", "meterPower2")
+    gen = sensor.FoxESSEnergyGenerated(coordinator_zero, "FoxESS", "DEV1", "Energy Generated", "gen", "todayYield")
+
+    # Offline with show_unknown_zero: True -> returns 0.0 / "0"
+    assert power.native_value == 0.0
+    assert current.native_value == 0.0
+    assert volt.native_value == 0.0
+    assert power_str.native_value == "0"
+    assert gen.native_value is None
+
+    # Now simulate a generation reading while online, then going offline
+    coordinator_zero.data["online"] = True
+    coordinator_zero.data["reportDailyGeneration"]["todayYield"] = 5.25
+    assert gen.native_value == 5.25
+
+    # Goes offline at night -> retains last known value instead of unknown
+    coordinator_zero.data["online"] = False
+    coordinator_zero.data["reportDailyGeneration"] = {}
+    assert gen.native_value == 5.25
+
+    # Compare with default behavior (show_unknown_zero: False)
+    coordinator_default = MagicMock()
+    coordinator_default.config = {sensor.CONF_SHOW_UNKNOWN_ZERO: False}
+    coordinator_default.data = {"online": False, "raw": {}, "reportDailyGeneration": {}, "report": {}}
+
+    power_def = sensor.FoxESSPower(coordinator_default, "FoxESS", "DEV1", "PV Power", "pv-power", "pvPower")
+    assert power_def.native_value is None
 
 
 

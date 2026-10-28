@@ -656,6 +656,7 @@ async def test_options_flow_success(
         "xtZone": True,
         "Restrict": True,
         "reduceAPICalls": False,
+        "show_unknown_zero": False,
     }
 
     with _patch_fetch_device_list((MOCK_DEVICES, None)):
@@ -721,6 +722,7 @@ async def test_async_step_import_success(
         "xtZone": True,
         "Restrict": True,
         "reduceAPICalls": False,
+        "show_unknown_zero": False,
     }
     with patch(
         "homeassistant.components.persistent_notification.async_create"

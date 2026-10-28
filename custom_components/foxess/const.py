@@ -20,6 +20,8 @@ CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
 DEFAULT_ENERGY_GENERATED_SANITY = 100.0
 CONF_REDUCE_API_CALLS = "reduceAPICalls"
 DEFAULT_REDUCE_API_CALLS = False
+CONF_SHOW_UNKNOWN_ZERO = "show_unknown_zero"
+DEFAULT_SHOW_UNKNOWN_ZERO = False
 
 # Timing and Intervals
 SCAN_MINUTES = 1  # number of minutes between coordinator refresh evaluations
@@ -32,6 +34,15 @@ RETRY_IN_10_MINS = 20
 # API Endpoints
 _ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
+_ENDPOINT_OA_BATTERY_SOC_SET = "/op/v0/device/battery/soc/set"
+_ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET = "/op/v0/device/battery/forceChargeTime/get"
+_ENDPOINT_OA_BATTERY_FORCE_CHARGE_SET = "/op/v0/device/battery/forceChargeTime/set"
+_ENDPOINT_OA_SETTING_SET = "/op/v0/device/setting/set"
+_ENDPOINT_OA_SETTING_GET = "/op/v0/device/setting/get"
+_ENDPOINT_OA_SCHEDULER_FLAG_SET = "/op/v1/device/scheduler/set/flag"
+_ENDPOINT_OA_SCHEDULER_FLAG_GET = "/op/v1/device/scheduler/get/flag"
+_ENDPOINT_OA_SCHEDULER_ENABLE = "/op/v2/device/scheduler/enable"
+_ENDPOINT_OA_SCHEDULER_GET = "/op/v2/device/scheduler/get"
 _ENDPOINT_OA_REPORT = "/op/v0/device/report/query"
 _ENDPOINT_OA_DEVICE_DETAIL = "/op/v0/device/detail"
 _ENDPOINT_OA_DEVICE_DETAIL_V1 = "/op/v1/device/detail"

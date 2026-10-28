@@ -7,5 +7,5 @@
   "documentation": "https://github.com/macxq/foxess-ha",
   "iot_class": "cloud_polling",
   "issue_tracker":"https://github.com/macxq/foxess-ha/issues",
-  "version": "v0.59"
+  "version": "v0.60.0b1"
 }
