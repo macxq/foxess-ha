@@ -66,6 +66,16 @@ sensor:
 
 
 
+## 🔋 Battery Controls, Work Modes & Scheduling
+
+For systems equipped with a battery, this integration provides:
+- **Work Mode Selection (`select`):** `Self-Use`, `Feed-in`, `Backup`, `Peak Shaving`.
+- **Battery Min SoC Settings (`number`):** `Min SoC` & `Min SoC on Grid` controls with auto-clamping.
+- **Mode Scheduler (`switch`):** Toggle scheduler on/off, with configured groups exposed in attributes.
+- **Automation Services:** `foxess.set_schedule` and `foxess.set_force_charge_times` (for AIO / legacy models).
+
+---
+
 ## 📊 Provided entities
 
 HA Entity  | Measurement

@@ -6,12 +6,14 @@ title: "Battery Storage Control & Mode Scheduling Automation (Beta 1) (#19, #201
 date: "2026-10-27"
 ```
 
-### 🔋 Battery Storage Control & Mode Scheduling Automation (Beta 1) (#19, #201, #323, #381, #401)
+### 🔋 Battery Storage Control & Mode Scheduling Automation (Beta 1) (#19, #201, #323, #352, #360, #365, #381, #401)
 
 - **Battery State-of-Charge (SoC) Controls (`number`)**: Added configurable number entities for `Min SoC` (reserve cut-off) and `Min SoC on Grid` (grid charge cut-off) with automatic cross-entity clamping (`Min SoC <= Min SoC on Grid`) (#19, #381).
 - **Inverter Work Mode Selection (`select`)**: Added `Work Mode` select entity to switch between `Self-Use`, `Feed-in`, `Backup`, and `Peak Shaving` modes, protected with conflict prevention when schedule mode is active (#323).
-- **Mode Scheduler Toggle (`switch`)**: Added `Mode Scheduler` switch to enable or disable the inverter's cloud schedule, exposing configured schedule groups in state attributes (#201).
+- **Mode Scheduler Toggle (`switch`)**: Added `Mode Scheduler` switch to enable or disable the inverter's cloud schedule, exposing configured schedule groups and force charge times in state attributes (#201).
 - **Automated Scheduling Service (`foxess.set_schedule`)**: Registered service allowing automations (e.g. night-time cheap tariff charging or dynamic price schedules) to configure schedule time segments with auto-activation.
+- **Legacy & AIO Force Charge Scheduling (`foxess.set_force_charge_times`)**: Added service and endpoints (`/op/v0/device/battery/forceChargeTime/...`) for inverters like AIO-H3 and legacy models that do not use the Mode Scheduler (#352).
+- **Offline Zeroing for Micro-Inverters (`show_unknown_zero`)**: Added configuration option to report `0.0` for power, current, and voltage instead of falling into `unavailable` when the micro-inverter is offline after sunset, while preserving daily energy totals (#360, #365).
 - **Centralized Multi-Platform Coordinator**: Migrated update coordinator lifecycle to `__init__.py` to share a single polling instance across sensor, select, number, and switch platforms without duplicate API calls.
 - **PV-Only Protection**: Inverters without batteries (`hasBattery == False`) cleanly skip creating battery and scheduling controls, leaving solar-only installations clutter-free.
 
