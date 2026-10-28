@@ -41,11 +41,13 @@ from .const import (
     CONF_EXTPV,
     CONF_GET_VARIABLES,
     CONF_REDUCE_API_CALLS,
+    CONF_SHOW_UNKNOWN_ZERO,
     CONF_V1_API,
     CONF_XTZONE,
     DEFAULT_ENERGY_GENERATED_SANITY,
     DEFAULT_NAME,
     DEFAULT_REDUCE_API_CALLS,
+    DEFAULT_SHOW_UNKNOWN_ZERO,
     DOMAIN,
     YAML_CONFIGS_KEY,
 )
@@ -371,6 +373,15 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                             CONF_REDUCE_API_CALLS,
                             current_data.get(
                                 CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
+                            ),
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SHOW_UNKNOWN_ZERO,
+                        default=current_options.get(
+                            CONF_SHOW_UNKNOWN_ZERO,
+                            current_data.get(
+                                CONF_SHOW_UNKNOWN_ZERO, DEFAULT_SHOW_UNKNOWN_ZERO
                             ),
                         ),
                     ): bool,

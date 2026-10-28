@@ -957,6 +957,45 @@ async def test_reduced_api_calls_report_interval(hass: HomeAssistant):
         assert mock_report.call_count == 2
 
 
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_show_unknown_zero_offline_behavior(hass: HomeAssistant):
+    """Test show_unknown_zero option when inverter or micro-inverter is offline."""
+    coordinator_zero = MagicMock()
+    coordinator_zero.config = {sensor.CONF_SHOW_UNKNOWN_ZERO: True}
+    coordinator_zero.data = {"online": False, "raw": {}, "reportDailyGeneration": {}, "report": {}}
+
+    power = sensor.FoxESSPower(coordinator_zero, "FoxESS", "DEV1", "PV Power", "pv-power", "pvPower")
+    current = sensor.FoxESSCurrent(coordinator_zero, "FoxESS", "DEV1", "PV Current", "pv-current", "pvCurrent")
+    volt = sensor.FoxESSVolt(coordinator_zero, "FoxESS", "DEV1", "PV Volt", "pv-volt", "pvVolt")
+    power_str = sensor.FoxESSPowerString(coordinator_zero, "FoxESS", "DEV1", "Meter2 Power", "m2", "meterPower2")
+    gen = sensor.FoxESSEnergyGenerated(coordinator_zero, "FoxESS", "DEV1", "Energy Generated", "gen", "todayYield")
+
+    # Offline with show_unknown_zero: True -> returns 0.0 / "0"
+    assert power.native_value == 0.0
+    assert current.native_value == 0.0
+    assert volt.native_value == 0.0
+    assert power_str.native_value == "0"
+    assert gen.native_value is None
+
+    # Now simulate a generation reading while online, then going offline
+    coordinator_zero.data["online"] = True
+    coordinator_zero.data["reportDailyGeneration"]["todayYield"] = 5.25
+    assert gen.native_value == 5.25
+
+    # Goes offline at night -> retains last known value instead of unknown
+    coordinator_zero.data["online"] = False
+    coordinator_zero.data["reportDailyGeneration"] = {}
+    assert gen.native_value == 5.25
+
+    # Compare with default behavior (show_unknown_zero: False)
+    coordinator_default = MagicMock()
+    coordinator_default.config = {sensor.CONF_SHOW_UNKNOWN_ZERO: False}
+    coordinator_default.data = {"online": False, "raw": {}, "reportDailyGeneration": {}, "report": {}}
+
+    power_def = sensor.FoxESSPower(coordinator_default, "FoxESS", "DEV1", "PV Power", "pv-power", "pvPower")
+    assert power_def.native_value is None
+
+
 
 
 

@@ -20,6 +20,8 @@ CONF_ENERGY_GENERATED_SANITY = "energyGeneratedSanityCheck"
 DEFAULT_ENERGY_GENERATED_SANITY = 100.0
 CONF_REDUCE_API_CALLS = "reduceAPICalls"
 DEFAULT_REDUCE_API_CALLS = False
+CONF_SHOW_UNKNOWN_ZERO = "show_unknown_zero"
+DEFAULT_SHOW_UNKNOWN_ZERO = False
 
 # Timing and Intervals
 SCAN_MINUTES = 1  # number of minutes between coordinator refresh evaluations

@@ -67,6 +67,7 @@ from .const import (
     CONF_GET_VARIABLES,
     CONF_NAME,
     CONF_REDUCE_API_CALLS,
+    CONF_SHOW_UNKNOWN_ZERO,
     CONF_SYSTEM_ID,
     CONF_V1_API,
     CONF_XTZONE,
@@ -121,6 +122,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(
             CONF_REDUCE_API_CALLS, default=DEFAULT_REDUCE_API_CALLS
         ): cv.boolean,
+        vol.Optional(CONF_SHOW_UNKNOWN_ZERO, default=False): cv.boolean,
     }
 )
 
@@ -1497,6 +1499,14 @@ class FoxESSEntity(CoordinatorEntity, SensorEntity):
     """Base class for FoxESS sensor entities with DeviceInfo."""
 
     @property
+    def _show_unknown_zero(self) -> bool:
+        """Return True if offline zeroing is enabled in config."""
+        config = getattr(self.coordinator, "config", None)
+        if isinstance(config, dict):
+            return bool(config.get(CONF_SHOW_UNKNOWN_ZERO, False))
+        return False
+
+    @property
     def device_info(self) -> DeviceInfo | None:
         """Return device information to group all entities under one device."""
         devicesn = getattr(self.coordinator, "devicesn", None) or getattr(
@@ -1541,12 +1551,13 @@ class FoxESSPowerString(FoxESSEntity):
 
     @property
     def native_value(self) -> str | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+        show_zero = self._show_unknown_zero
+        if self.coordinator.data.get("online") and self.coordinator.data.get("raw"):
             if self._keyValue not in self.coordinator.data["raw"]:
                 _LOGGER.debug("%s None", self._keyValue)
-            else:
-                return self.coordinator.data["raw"][self._keyValue]
-        return None
+                return "0" if show_zero else None
+            return self.coordinator.data["raw"][self._keyValue]
+        return "0" if show_zero else None
 
 
 class FoxESSCurrent(FoxESSEntity):
@@ -1572,12 +1583,13 @@ class FoxESSCurrent(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+        show_zero = self._show_unknown_zero
+        if self.coordinator.data.get("online") and self.coordinator.data.get("raw"):
             if self._keyValue not in self.coordinator.data["raw"]:
                 _LOGGER.debug("%s None", self._keyValue)
-            else:
-                return self.coordinator.data["raw"][self._keyValue]
-        return None
+                return 0.0 if show_zero else None
+            return self.coordinator.data["raw"][self._keyValue]
+        return 0.0 if show_zero else None
 
 
 class FoxESSFreq(FoxESSEntity):
@@ -1634,12 +1646,13 @@ class FoxESSPower(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+        show_zero = self._show_unknown_zero
+        if self.coordinator.data.get("online") and self.coordinator.data.get("raw"):
             if self._keyValue not in self.coordinator.data["raw"]:
                 _LOGGER.debug("%s None", self._keyValue)
-            else:
-                return self.coordinator.data["raw"][self._keyValue]
-        return None
+                return 0.0 if show_zero else None
+            return self.coordinator.data["raw"][self._keyValue]
+        return 0.0 if show_zero else None
 
 
 class FoxESSVolt(FoxESSEntity):
@@ -1665,12 +1678,13 @@ class FoxESSVolt(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data["online"] and self.coordinator.data["raw"]:
+        show_zero = self._show_unknown_zero
+        if self.coordinator.data.get("online") and self.coordinator.data.get("raw"):
             if self._keyValue not in self.coordinator.data["raw"]:
                 _LOGGER.debug("%s None", self._keyValue)
-            else:
-                return self.coordinator.data["raw"][self._keyValue]
-        return None
+                return 0.0 if show_zero else None
+            return self.coordinator.data["raw"][self._keyValue]
+        return 0.0 if show_zero else None
 
 
 class FoxESSReactivePower(FoxESSEntity):
@@ -1749,6 +1763,7 @@ class FoxESSEnergyGenerated(FoxESSEntity):
         self._uniqueValue = uniqueValue
         self._keyValue = keyValue
         self._max_value = max_value
+        self._last_known_value = None
         _LOGGER.debug("Initiating Entity - %s", self._nameValue)
         self._attr_name = f"{name} - {self._nameValue}"
         self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
@@ -1762,21 +1777,22 @@ class FoxESSEnergyGenerated(FoxESSEntity):
 
     @property
     def native_value(self) -> float | None:
+        show_zero = self._show_unknown_zero
         if self._keyValue not in self.coordinator.data.get("reportDailyGeneration", {}):
             _LOGGER.debug("%s None", self._keyValue)
-            return None
+            return self._last_known_value if show_zero else None
 
         val = self.coordinator.data["reportDailyGeneration"][self._keyValue]
         if val is None:
-            return None
+            return self._last_known_value if show_zero else None
 
         if val == 0:
-            energygenerated = 0
+            energygenerated = 0.0
         else:
             if val > 0:
-                energygenerated = round(val, 3)
+                energygenerated = round(float(val), 3)
             else:
-                energygenerated = 0
+                energygenerated = 0.0
 
         if (
             self._max_value is not None
@@ -1789,8 +1805,9 @@ class FoxESSEnergyGenerated(FoxESSEntity):
                 energygenerated,
                 self._max_value,
             )
-            return None
+            return self._last_known_value if show_zero else None
 
+        self._last_known_value = energygenerated
         return energygenerated
 
 
@@ -2057,6 +2074,7 @@ class FoxESSPVEnergyTotal(FoxESSEntity):
         _LOGGER.debug("Initiating Entity - PV Energy Total")
         self._attr_name = name + " - PVEnergyTotal"
         self._attr_unique_id = deviceID + "PVEnergyTotal"
+        self._last_known_value = None
         self.status = namedtuple(
             "status",
             [
@@ -2066,17 +2084,20 @@ class FoxESSPVEnergyTotal(FoxESSEntity):
         )
 
     @property
-    def native_value(self) -> str | None:
-        if "PVEnergyTotal" not in self.coordinator.data["report"]:
+    def native_value(self) -> float | None:
+        show_zero = self._show_unknown_zero
+        if "PVEnergyTotal" not in self.coordinator.data.get("report", {}):
             _LOGGER.debug("report PVEnergyTotal None")
+            return self._last_known_value if show_zero else None
+        val = self.coordinator.data["report"]["PVEnergyTotal"]
+        if val is None:
+            return self._last_known_value if show_zero else None
+        if val == 0:
+            energyload = 0.0
         else:
-            if self.coordinator.data["report"]["PVEnergyTotal"] == 0:
-                energyload = 0
-            else:
-                energyload = self.coordinator.data["report"]["PVEnergyTotal"]
-            # round
-            return round(energyload, 3)
-        return None
+            energyload = round(float(val), 3)
+        self._last_known_value = energyload
+        return energyload
 
 
 class FoxESSInverter(FoxESSEntity):
