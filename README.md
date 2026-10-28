@@ -72,7 +72,7 @@ You can adjust settings for each configured inverter at any time without restart
 | `Evo` | boolean | `false` | Enable support for FoxESS EVO series inverters. |
 | `xtZone` | boolean | `false` | Adjust time zone offset if inverter timestamps differ from HA local time. |
 | `Restrict` | boolean | `false` | Limit API variable queries to prevent timeout/payload issues on certain inverters. |
-| `Use_V1_Api` | boolean | `true` | Use OpenAPI v1 endpoints (`/op/v1/device/...`) for real-time telemetry. |
+| `Use_V1_Api` | boolean | `true` | Use modern OpenAPI v1 endpoints (`/op/v1/device/...`) for real-time telemetry. Set to `false` to fall back to legacy v0 endpoints (`/op/v0/device/...`) if required by older accounts. |
 
 ---
 
@@ -143,7 +143,11 @@ For systems equipped with a battery, this integration exposes direct controls an
 
 ### ⚡ Automation Services
 
-#### 1. `foxess.set_schedule`
+FoxESS Cloud OpenAPI offers two distinct approaches for battery charging and scheduling depending on the inverter model:
+- **New API (Mode Scheduler):** Supported by modern inverters (H1 G2, H3, KH, H3-Pro, etc.). Uses `/op/v1/device/scheduler/...` and `/op/v2/device/scheduler/...` to define dynamic multi-segment schedules with selectable work modes (`ForceCharge`, `ForceDischarge`, `SelfUse`).
+- **Legacy API (Force Charge Times):** Supported by older generation inverters and All-in-One series (e.g. AIO-H3, AC1) where the FoxESS Cloud does not support the Mode Scheduler module (returning an unsupported scheduler error). Uses `/op/v0/device/battery/forceChargeTime/get` and `/set` to configure two grid force-charge time periods.
+
+#### 1. `foxess.set_schedule` (New Mode Scheduler API)
 Overwrites the FoxESS Mode Scheduler with configured time slots and operating modes (ideal for dynamic tariff charging, e.g. Octopus Agile, Nord Pool, Tibber):
 
 ```yaml
@@ -162,8 +166,8 @@ data:
       fdPwr: 0
 ```
 
-#### 2. `foxess.set_force_charge_times`
-Configures grid force-charging time windows for inverters supporting `forceChargeTime` (such as AIO-H3, AC1, and models that do not use the Mode Scheduler):
+#### 2. `foxess.set_force_charge_times` (Legacy Force Charge API)
+Configures grid force-charging time windows for inverters supporting the legacy `forceChargeTime` API (such as AIO-H3, AC1, and models without Mode Scheduler support):
 
 ```yaml
 action: foxess.set_force_charge_times
