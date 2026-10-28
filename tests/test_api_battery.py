@@ -104,3 +104,44 @@ async def test_api_get_battery_soc():
         res, data, _ = await client.async_get_battery_soc("SN123", "TOKEN")
         assert res == FetchResult.OK
         mock_get.assert_called_once_with("SN123", "TOKEN")
+
+
+@pytest.mark.asyncio
+async def test_api_force_charge_times():
+    client = FoxESSApiClient()
+    with patch.object(client, "async_request", new_callable=AsyncMock) as mock_req:
+        mock_req.return_value = (FetchResult.OK, {"errno": 0, "msg": "success"}, 100.0)
+        res, _, _ = await client.async_get_force_charge_times("SN123", "TOKEN")
+        assert res == FetchResult.OK
+        mock_req.assert_called_with(
+            "GET",
+            "/op/v0/device/battery/forceChargeTime/get",
+            "TOKEN",
+            url_override="https://www.foxesscloud.com/op/v0/device/battery/forceChargeTime/get?sn=SN123",
+        )
+
+        res, _, _ = await client.async_set_force_charge_times(
+            "SN123",
+            "TOKEN",
+            start_time_1={"hour": 2, "minute": 0},
+            end_time_1={"hour": 5, "minute": 0},
+            enable_1=True,
+            start_time_2={"hour": 14, "minute": 30},
+            end_time_2={"hour": 16, "minute": 0},
+            enable_2=False,
+        )
+        assert res == FetchResult.OK
+        mock_req.assert_called_with(
+            "POST",
+            "/op/v0/device/battery/forceChargeTime/set",
+            "TOKEN",
+            json_data={
+                "sn": "SN123",
+                "enable1": 1,
+                "enable2": 0,
+                "startTime1": {"hour": 2, "minute": 0},
+                "endTime1": {"hour": 5, "minute": 0},
+                "startTime2": {"hour": 14, "minute": 30},
+                "endTime2": {"hour": 16, "minute": 0},
+            },
+        )

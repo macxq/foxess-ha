@@ -33,6 +33,8 @@ RETRY_IN_10_MINS = 20
 _ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
 _ENDPOINT_OA_BATTERY_SOC_SET = "/op/v0/device/battery/soc/set"
+_ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET = "/op/v0/device/battery/forceChargeTime/get"
+_ENDPOINT_OA_BATTERY_FORCE_CHARGE_SET = "/op/v0/device/battery/forceChargeTime/set"
 _ENDPOINT_OA_SETTING_SET = "/op/v0/device/setting/set"
 _ENDPOINT_OA_SETTING_GET = "/op/v0/device/setting/get"
 _ENDPOINT_OA_SCHEDULER_FLAG_SET = "/op/v1/device/scheduler/set/flag"

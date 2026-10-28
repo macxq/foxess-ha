@@ -18,6 +18,8 @@ from .const import (
     _AUTH_ERRNO,
     _ENDPOINT_OA_BATTERY_SETTINGS,
     _ENDPOINT_OA_BATTERY_SOC_SET,
+    _ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET,
+    _ENDPOINT_OA_BATTERY_FORCE_CHARGE_SET,
     _ENDPOINT_OA_DAILY_GENERATION,
     _ENDPOINT_OA_DEVICE_DETAIL,
     _ENDPOINT_OA_DEVICE_DETAIL_V1,
@@ -336,4 +338,40 @@ class FoxESSApiClient:
             _ENDPOINT_OA_SCHEDULER_GET,
             token,
             json_data={"deviceSN": sn},
+        )
+
+    async def async_get_force_charge_times(
+        self, sn: str, token: str
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Fetch battery force charge time windows."""
+        path = _ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET
+        url = f"{_ENDPOINT_OA_DOMAIN}{path}?sn={sn}"
+        return await self.async_request("GET", path, token, url_override=url)
+
+    async def async_set_force_charge_times(
+        self,
+        sn: str,
+        token: str,
+        start_time_1: dict[str, int] | None = None,
+        end_time_1: dict[str, int] | None = None,
+        enable_1: bool = True,
+        start_time_2: dict[str, int] | None = None,
+        end_time_2: dict[str, int] | None = None,
+        enable_2: bool = False,
+    ) -> tuple[FetchResult, dict[str, Any] | None, float]:
+        """Set battery force charge time windows."""
+        payload: dict[str, Any] = {
+            "sn": sn,
+            "enable1": 1 if enable_1 else 0,
+            "enable2": 1 if enable_2 else 0,
+            "startTime1": start_time_1 or {"hour": 0, "minute": 0},
+            "endTime1": end_time_1 or {"hour": 0, "minute": 0},
+            "startTime2": start_time_2 or {"hour": 0, "minute": 0},
+            "endTime2": end_time_2 or {"hour": 0, "minute": 0},
+        }
+        return await self.async_request(
+            "POST",
+            _ENDPOINT_OA_BATTERY_FORCE_CHARGE_SET,
+            token,
+            json_data=payload,
         )

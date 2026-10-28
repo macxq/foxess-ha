@@ -28,6 +28,9 @@ async def test_scheduler_switch_toggle_and_attributes(hass):
     assert switch.is_on is True
     assert switch.extra_state_attributes["scheduler_groups"] == coordinator.data["schedulerGroups"]
 
+    coordinator.data["forceChargeTimes"] = {"enable1": 1, "enable2": 0}
+    assert switch.extra_state_attributes["force_charge_times"] == {"enable1": 1, "enable2": 0}
+
     # Turn off
     with patch("custom_components.foxess.switch.FoxESSApiClient.async_set_scheduler_flag", new_callable=AsyncMock) as mock_flag:
         mock_flag.return_value = (FetchResult.OK, {"errno": 0, "msg": "success"}, 50.0)

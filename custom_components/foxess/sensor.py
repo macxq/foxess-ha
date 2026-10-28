@@ -1084,6 +1084,15 @@ async def getOAWorkModeAndScheduler(hass, allData, devicesn, apiKey):
             groups = result_grp.get("groups")
             if isinstance(groups, list):
                 allData["schedulerGroups"] = groups
+        await asyncio.sleep(1)
+
+        res_fct, resp_fct, _ = await client.async_get_force_charge_times(devicesn, apiKey)
+        if res_fct is FetchResult.OK and resp_fct and resp_fct.get("errno") == 0:
+            result_fct = resp_fct.get("result", {})
+            if isinstance(result_fct, list) and result_fct:
+                result_fct = result_fct[0]
+            if isinstance(result_fct, dict):
+                allData["forceChargeTimes"] = result_fct
     except Exception as err:
         _LOGGER.debug("Error fetching work mode or scheduler settings: %s", err)
 
