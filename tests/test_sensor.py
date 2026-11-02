@@ -455,6 +455,165 @@ def test_energy_solar_should_ignore_stale_report_after_midnight():
         assert solar_entity.native_value == 7.7
 
 
+def _cumulative_entity(coordinator, max_daily_increase=None):
+    return sensor.FoxESSEnergyGenerated(
+        coordinator,
+        "Inverter",
+        "DEV1",
+        "Energy Generated Cumulative",
+        "energy-generated-cumulative",
+        "cumulative",
+        max_daily_increase=max_daily_increase,
+    )
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_cumulative_rejects_nighttime_drop():
+    """A too low cumulative reading must not reach HA as a meter reset (#404)."""
+    import datetime
+
+    coordinator = MagicMock()
+    entity = _cumulative_entity(coordinator, max_daily_increase=100.0)
+    start = datetime.datetime(2026, 10, 26, 3, 0, tzinfo=datetime.timezone.utc)
+
+    with patch("homeassistant.util.dt.utcnow") as mock_utcnow:
+        mock_utcnow.return_value = start
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 165.0}}
+        assert entity.native_value == 165.0
+
+        # Cloud glitch at night: 0 / 0.3 kWh instead of the lifetime total
+        mock_utcnow.return_value = start + datetime.timedelta(hours=1)
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 0}}
+        assert entity.native_value is None
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 0.3}}
+        assert entity.native_value is None
+
+        # Real value returns and normal production continues
+        mock_utcnow.return_value = start + datetime.timedelta(hours=4)
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 165.2}}
+        assert entity.native_value == 165.2
+        mock_utcnow.return_value = start + datetime.timedelta(hours=8)
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 170.0}}
+        assert entity.native_value == 170.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_cumulative_drop_holds_value_with_show_unknown_zero():
+    """With show_unknown_zero a rejected reading keeps the last accepted value."""
+    coordinator = MagicMock()
+    coordinator.config = {"show_unknown_zero": True}
+    entity = _cumulative_entity(coordinator)
+
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 165.0}}
+    assert entity.native_value == 165.0
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 0.3}}
+    assert entity.native_value == 165.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_cumulative_accepts_persistent_reset():
+    """A lower value that persists for 24 h is accepted as a genuine reset."""
+    import datetime
+
+    coordinator = MagicMock()
+    entity = _cumulative_entity(coordinator)
+    start = datetime.datetime(2026, 10, 26, 3, 0, tzinfo=datetime.timezone.utc)
+
+    with patch("homeassistant.util.dt.utcnow") as mock_utcnow:
+        mock_utcnow.return_value = start
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 165.0}}
+        assert entity.native_value == 165.0
+
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 2.0}}
+        mock_utcnow.return_value = start + datetime.timedelta(hours=1)
+        assert entity.native_value is None
+        mock_utcnow.return_value = start + datetime.timedelta(hours=24, minutes=30)
+        assert entity.native_value is None
+        mock_utcnow.return_value = start + datetime.timedelta(hours=25, minutes=1)
+        assert entity.native_value == 2.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_cumulative_rejects_spike_until_time_allows():
+    """Increases above the daily threshold per elapsed day are ignored."""
+    import datetime
+
+    coordinator = MagicMock()
+    entity = _cumulative_entity(coordinator, max_daily_increase=100.0)
+    start = datetime.datetime(2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc)
+
+    with patch("homeassistant.util.dt.utcnow") as mock_utcnow:
+        mock_utcnow.return_value = start
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 1500.0}}
+        assert entity.native_value == 1500.0
+
+        # Spike (e.g. 33 MWh) within one day
+        mock_utcnow.return_value = start + datetime.timedelta(hours=2)
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 33000.0}}
+        assert entity.native_value is None
+
+        # Up to one daily threshold is always allowed
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 1560.0}}
+        assert entity.native_value == 1560.0
+
+        # After a three day outage, up to 3 x 100 kWh is plausible
+        mock_utcnow.return_value = start + datetime.timedelta(days=3, hours=2)
+        coordinator.data = {"reportDailyGeneration": {"cumulative": 1800.0}}
+        assert entity.native_value == 1800.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+def test_energy_generated_daily_and_month_are_not_guarded():
+    """Daily and monthly values reset by design and must not be held back."""
+    coordinator = MagicMock()
+    month_entity = sensor.FoxESSEnergyGenerated(
+        coordinator, "Inverter", "DEV1", "Energy Generated Month", "energy-generated-month", "month"
+    )
+    coordinator.data = {"reportDailyGeneration": {"month": 300.0}}
+    assert month_entity.native_value == 300.0
+    coordinator.data = {"reportDailyGeneration": {"month": 2.5}}
+    assert month_entity.native_value == 2.5
+    assert month_entity.extra_restore_state_data is None
+
+
+def test_cumulative_guard_data_round_trip():
+    """The persisted baseline survives serialisation; broken data is ignored."""
+    import datetime
+
+    at = datetime.datetime(2026, 10, 26, 3, 0, tzinfo=datetime.timezone.utc)
+    data = sensor.CumulativeGuardData(165.0, at)
+    restored = sensor.CumulativeGuardData.from_dict(data.as_dict())
+    assert restored == data
+    assert sensor.CumulativeGuardData.from_dict({}) is None
+    assert sensor.CumulativeGuardData.from_dict({"last_valid": "abc"}) is None
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_energy_generated_cumulative_restores_baseline(hass: HomeAssistant):
+    """After a restart during a cloud glitch the old baseline still applies."""
+    import datetime
+
+    coordinator = MagicMock()
+    entity = _cumulative_entity(coordinator)
+    entity.hass = hass
+    entity.entity_id = "sensor.inverter_energy_generated_cumulative"
+    at = datetime.datetime(2026, 10, 26, 3, 0, tzinfo=datetime.timezone.utc)
+
+    with patch.object(
+        entity,
+        "async_get_last_extra_data",
+        new_callable=AsyncMock,
+        return_value=sensor.CumulativeGuardData(165.0, at),
+    ):
+        await entity.async_added_to_hass()
+
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 0.3}}
+    assert entity.native_value is None
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 165.2}}
+    assert entity.native_value == 165.2
+    assert entity.extra_restore_state_data.last_valid == 165.2
+
+
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_get_raw_age_check_respects_reduce_api_calls(hass: HomeAssistant):
     """Verify getRaw tolerates older samples (up to 661s) when reduce_api_calls is True."""
