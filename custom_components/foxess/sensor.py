@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from dataclasses import dataclass
 from datetime import timedelta
 from datetime import datetime
 from dateutil import parser
@@ -41,6 +42,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util.ssl import SSLCipherList
 from homeassistant.helpers.icon import icon_for_battery_level
 from homeassistant.util import dt as dt_util
@@ -730,6 +732,7 @@ async def _async_setup_foxess(
                 "Energy Generated Cumulative",
                 "energy-generated-cumulative",
                 "cumulative",
+                max_daily_increase=energyGeneratedSanityCheck,
             ),
             FoxESSEnergyGridConsumption(coordinator, name, deviceID),
             FoxESSEnergyFeedin(coordinator, name, deviceID),
@@ -1743,7 +1746,35 @@ class FoxESSPowerFactor(FoxESSEntity):
         return None
 
 
-class FoxESSEnergyGenerated(FoxESSEntity):
+CUMULATIVE_REGRESSION_ACCEPT_AFTER = timedelta(hours=24)
+
+
+@dataclass
+class CumulativeGuardData(ExtraStoredData):
+    """Last accepted lifetime cumulative value, kept across restarts."""
+
+    last_valid: float
+    last_valid_at: datetime | None
+
+    def as_dict(self) -> dict:
+        return {
+            "last_valid": self.last_valid,
+            "last_valid_at": (
+                self.last_valid_at.isoformat() if self.last_valid_at else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CumulativeGuardData | None:
+        try:
+            last_valid = float(data["last_valid"])
+            at = data.get("last_valid_at")
+            return cls(last_valid, dt_util.parse_datetime(at) if at else None)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+
+class FoxESSEnergyGenerated(FoxESSEntity, RestoreEntity):
     _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
@@ -1757,13 +1788,18 @@ class FoxESSEnergyGenerated(FoxESSEntity):
         uniqueValue,
         keyValue,
         max_value=None,
+        max_daily_increase=None,
     ):
         super().__init__(coordinator=coordinator)
         self._nameValue = nameValue
         self._uniqueValue = uniqueValue
         self._keyValue = keyValue
         self._max_value = max_value
+        self._max_daily_increase = max_daily_increase
         self._last_known_value = None
+        self._last_valid_cumulative = None
+        self._last_valid_cumulative_at = None
+        self._regression_since = None
         _LOGGER.debug("Initiating Entity - %s", self._nameValue)
         self._attr_name = f"{name} - {self._nameValue}"
         self._attr_unique_id = f"{deviceID}{self._uniqueValue}"
@@ -1807,8 +1843,95 @@ class FoxESSEnergyGenerated(FoxESSEntity):
             )
             return self._last_known_value if show_zero else None
 
+        if self._keyValue == "cumulative" and not self._cumulative_guard_accepts(
+            energygenerated
+        ):
+            return self._last_known_value if show_zero else None
+
         self._last_known_value = energygenerated
         return energygenerated
+
+    def _cumulative_guard_accepts(self, value: float) -> bool:
+        """Return True if a lifetime cumulative reading may be published.
+
+        The cloud sometimes returns a far too low cumulative value (e.g. 0 or 0.3
+        kWh) for a single report. TOTAL_INCREASING treats any decrease as a meter
+        reset and counts the whole lifetime total again when the real value
+        returns (#404). Readings below the last accepted value are rejected; a
+        decrease that persists for CUMULATIVE_REGRESSION_ACCEPT_AFTER is accepted
+        as a genuine reset. Increases larger than the daily sanity threshold per
+        elapsed day (at least one day) are rejected as spikes.
+        """
+        now = dt_util.utcnow()
+        last = self._last_valid_cumulative
+        if last is None:
+            self._accept_cumulative(value, now)
+            return True
+
+        if value < last:
+            if self._regression_since is None:
+                self._regression_since = now
+                _LOGGER.warning(
+                    "%s value %s is lower than last accepted value %s kWh, ignoring",
+                    self._nameValue,
+                    value,
+                    last,
+                )
+            if now - self._regression_since < CUMULATIVE_REGRESSION_ACCEPT_AFTER:
+                return False
+            _LOGGER.warning(
+                "%s value %s has stayed below %s kWh since %s, accepting as reset",
+                self._nameValue,
+                value,
+                last,
+                self._regression_since,
+            )
+            self._accept_cumulative(value, now)
+            return True
+
+        if (
+            self._max_daily_increase is not None
+            and self._last_valid_cumulative_at is not None
+        ):
+            elapsed_days = max(
+                (now - self._last_valid_cumulative_at).total_seconds() / 86400, 1.0
+            )
+            limit = self._max_daily_increase * elapsed_days
+            if value - last > limit:
+                _LOGGER.warning(
+                    "%s increase from %s to %s kWh exceeds %s kWh, ignoring",
+                    self._nameValue,
+                    last,
+                    value,
+                    round(limit, 3),
+                )
+                return False
+
+        self._accept_cumulative(value, now)
+        return True
+
+    def _accept_cumulative(self, value: float, now: datetime) -> None:
+        self._last_valid_cumulative = value
+        self._last_valid_cumulative_at = now
+        self._regression_since = None
+
+    @property
+    def extra_restore_state_data(self) -> CumulativeGuardData | None:
+        if self._keyValue != "cumulative" or self._last_valid_cumulative is None:
+            return None
+        return CumulativeGuardData(
+            self._last_valid_cumulative, self._last_valid_cumulative_at
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self._keyValue != "cumulative":
+            return
+        extra = await self.async_get_last_extra_data()
+        restored = CumulativeGuardData.from_dict(extra.as_dict()) if extra else None
+        if restored is not None and self._last_valid_cumulative is None:
+            self._last_valid_cumulative = restored.last_valid
+            self._last_valid_cumulative_at = restored.last_valid_at
 
 
 class FoxESSEnergyThroughput(FoxESSEntity):
