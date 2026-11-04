@@ -147,3 +147,4 @@ test_config/
 # Superpowers specs and plans
 docs/superpowers/
 
+.playwright-mcp/

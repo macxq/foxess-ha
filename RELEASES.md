@@ -1,5 +1,21 @@
 # Releases
 
+## [v0.60.0b2]
+```yaml
+title: "Cumulative Energy Guard & Battery Scheduling Fixes (Beta 2) (#404, #405)"
+date: "2026-11-04"
+```
+
+### 🛡️ Cumulative Energy Guard & Nighttime Glitch Protection (Beta 2) (#404, #405)
+
+- **Monotonic Lifetime Guard (`cumulative`)**: Rejects sudden cloud regression readings (e.g. `0.0` or `0.3 kWh` reported at night on micro-inverters) on `FoxESS - Energy Generated Cumulative`. Prevents Home Assistant `TOTAL_INCREASING` recorder from interpreting drops as meter resets and generating phantom solar generation spikes (#404, #405 by @neuhubereco).
+- **Persistent State across Restarts (`RestoreEntity`)**: Implemented `RestoreEntity` with `CumulativeGuardData(ExtraStoredData)` so the accepted cumulative lifetime baseline survives Home Assistant reboots and nighttime outages.
+- **24-Hour Reset Fallback**: A persistently lower reading (>24 hours) is accepted as a genuine hardware reset (e.g. inverter replacement), preventing the sensor from ever becoming permanently locked.
+- **Plausibility & Spike Guard**: Limits maximum increase between polls to `energyGeneratedSanityCheck * elapsed_days`.
+- **First-Run Migration Fallback**: Gracefully falls back to existing Home Assistant entity state (`async_get_last_state`) on initial upgrade from older versions prior to `CumulativeGuardData`.
+
+*(Includes all features from v0.60.0b1: Battery SoC controls, Inverter Work Mode selection, Mode Scheduler switch, `foxess.set_schedule`, `foxess.set_force_charge_times`, and `show_unknown_zero` for offline micro-inverters).*
+
 ## [v0.60.0b1]
 ```yaml
 title: "Battery Storage Control & Mode Scheduling Automation (Beta 1) (#19, #201, #323, #381, #401)"
