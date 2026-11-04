@@ -615,6 +615,33 @@ async def test_energy_generated_cumulative_restores_baseline(hass: HomeAssistant
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_energy_generated_cumulative_restores_baseline_from_last_state(hass: HomeAssistant):
+    """Fallback to async_get_last_state when upgrading from version without extra_data."""
+    coordinator = MagicMock()
+    entity = _cumulative_entity(coordinator)
+    entity.hass = hass
+    entity.entity_id = "sensor.inverter_energy_generated_cumulative"
+
+    with patch.object(
+        entity,
+        "async_get_last_extra_data",
+        new_callable=AsyncMock,
+        return_value=None,
+    ), patch.object(
+        entity,
+        "async_get_last_state",
+        new_callable=AsyncMock,
+        return_value=MagicMock(state="165.0", last_updated=None),
+    ):
+        await entity.async_added_to_hass()
+
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 0.3}}
+    assert entity.native_value is None
+    coordinator.data = {"reportDailyGeneration": {"cumulative": 165.2}}
+    assert entity.native_value == 165.2
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_get_raw_age_check_respects_reduce_api_calls(hass: HomeAssistant):
     """Verify getRaw tolerates older samples (up to 661s) when reduce_api_calls is True."""
     import time

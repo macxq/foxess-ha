@@ -26,6 +26,8 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_NAME,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
     UnitOfPower,
     UnitOfTemperature,
     UnitOfEnergy,
@@ -1932,6 +1934,20 @@ class FoxESSEnergyGenerated(FoxESSEntity, RestoreEntity):
         if restored is not None and self._last_valid_cumulative is None:
             self._last_valid_cumulative = restored.last_valid
             self._last_valid_cumulative_at = restored.last_valid_at
+            self._last_known_value = restored.last_valid
+        elif self._last_valid_cumulative is None:
+            # Fallback for initial upgrade from releases prior to CumulativeGuardData
+            prev_state = await self.async_get_last_state()
+            if prev_state and prev_state.state not in (
+                STATE_UNKNOWN,
+                STATE_UNAVAILABLE,
+            ):
+                try:
+                    self._last_valid_cumulative = float(prev_state.state)
+                    self._last_valid_cumulative_at = prev_state.last_updated
+                    self._last_known_value = self._last_valid_cumulative
+                except (ValueError, TypeError):
+                    pass
 
 
 class FoxESSEnergyThroughput(FoxESSEntity):
