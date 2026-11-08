@@ -54,6 +54,9 @@ _ENDPOINT_OA_DEVICE_LIST = "/op/v0/device/list"
 # Error numbers for authentication failure (invalid/missing token)
 _AUTH_ERRNO = {41808, 41809}
 
+# Maximum schedule groups supported by FoxESS Cloud OpenAPI
+MAX_SCHEDULER_GROUPS = 8
+
 # Key under hass.data where YAML-configured device info is stored
 YAML_CONFIGS_KEY = "foxess_yaml_configs"
 

@@ -156,7 +156,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            api_key = user_input[CONF_APIKEY]
+            api_key = str(user_input[CONF_APIKEY]).strip()
             devices, error = await _fetch_device_list(self.hass, api_key)
             if error:
                 errors["base"] = error
@@ -313,6 +313,9 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
             user_input_copy = dict(user_input)
             user_input_copy.pop(CONF_DEVICESN, None)
             new_api_key = user_input_copy.get(CONF_APIKEY)
+            if new_api_key:
+                new_api_key = str(new_api_key).strip()
+                user_input_copy[CONF_APIKEY] = new_api_key
             current_api_key = self.config_entry.options.get(
                 CONF_APIKEY, self.config_entry.data.get(CONF_APIKEY)
             )

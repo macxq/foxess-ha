@@ -13,7 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .api import FoxESSApiClient
-from .const import DOMAIN, FetchResult
+from .const import DOMAIN, FetchResult, MAX_SCHEDULER_GROUPS
 from .sensor import FoxDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,6 +86,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         groups: list[dict[str, Any]] = call.data["groups"]
         enable: bool = call.data.get("enable", True)
         is_default: bool = call.data.get("is_default", False)
+
+        if len(groups) > MAX_SCHEDULER_GROUPS:
+            raise HomeAssistantError(
+                f"FoxESS Cloud scheduler supports a maximum of {MAX_SCHEDULER_GROUPS} schedule slots, "
+                f"but received {len(groups)}. Please limit your schedule to {MAX_SCHEDULER_GROUPS} groups or fewer."
+            )
 
         target_coordinator, client, target_api_key = _get_target_device_info(device_sn)
         if not target_api_key:

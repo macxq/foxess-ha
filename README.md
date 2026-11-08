@@ -150,20 +150,59 @@ FoxESS Cloud OpenAPI offers two distinct approaches for battery charging and sch
 #### 1. `foxess.set_schedule` (New Mode Scheduler API)
 Overwrites the FoxESS Mode Scheduler with configured time slots and operating modes (ideal for dynamic tariff charging, e.g. Octopus Agile, Nord Pool, Tibber):
 
+> [!IMPORTANT]
+> **FoxESS Cloud Scheduler Specifications & Boundaries:**
+> - **8-Slot Limit:** The FoxESS Cloud OpenAPI enforces a strict maximum of **8 schedule groups (positional slots)**. Writing more than 8 groups will raise an error.
+> - **Parameter Semantics (`extraParam`):**
+>   - **`ForceCharge`:** `extraParam.maxSoc` specifies the charge-to target (*Period Max SOC*).
+>   - **`SelfUse`:** `extraParam.minSocOnGrid` specifies the minimum discharge floor (*Period Min SOC*).
+>   - **`Backup`:** Prevents household battery discharge; `extraParam.minSocOnGrid` specifies the floor.
+> - **Remaining Time Mode:** Writing a schedule resets the FoxESS app's *Remaining Time Mode* to `Self-use`. If you want idle periods outside active charging windows to hold charge rather than discharge, define explicit `Backup` groups.
+
 ```yaml
 action: foxess.set_schedule
 data:
   device_sn: "60BH1234567"
   enable: true
   groups:
+    # 1. Cheap slot: Force Charge from grid up to 85% SoC
     - enable: 1
       startHour: 2
       startMinute: 0
       endHour: 5
       endMinute: 0
       workMode: "ForceCharge"
-      minSocOnGrid: 100
-      fdPwr: 0
+      extraParam:
+        maxSoc: 85
+        minSocOnGrid: 20
+        fdPwr: 0
+        fdSoc: 100
+
+    # 2. Peak slot: Discharge for self-use down to 30% floor
+    - enable: 1
+      startHour: 17
+      startMinute: 0
+      endHour: 21
+      endMinute: 0
+      workMode: "SelfUse"
+      extraParam:
+        minSocOnGrid: 30
+        maxSoc: 100
+        fdPwr: 0
+        fdSoc: 100
+
+    # 3. Night hold: Prevent discharge using Backup mode
+    - enable: 1
+      startHour: 21
+      startMinute: 0
+      endHour: 23
+      endMinute: 59
+      workMode: "Backup"
+      extraParam:
+        minSocOnGrid: 30
+        maxSoc: 100
+        fdPwr: 0
+        fdSoc: 100
 ```
 
 #### 2. `foxess.set_force_charge_times` (Legacy Force Charge API)
