@@ -1,6 +1,6 @@
 set_schedule:
   name: Set schedule
-  description: Overwrite the FoxESS inverter mode schedule with configured time segments.
+  description: Overwrite the FoxESS inverter mode schedule with configured time segments (up to 8 slots supported by FoxESS Cloud OpenAPI).
   fields:
     device_sn:
       name: Inverter serial number
@@ -11,7 +11,7 @@ set_schedule:
         text:
     groups:
       name: Schedule groups
-      description: List of schedule groups defining time periods and work modes.
+      description: List of up to 8 schedule groups defining time periods and work modes. Note that for ForceCharge groups, extraParam.maxSoc sets the target charge level ("Period Max SOC"), while for SelfUse/Backup groups, extraParam.minSocOnGrid sets the floor ("Period Min SOC"). Writing a schedule resets the cloud Remaining Time Mode to Self-use.
       required: true
       selector:
         object:

@@ -61,6 +61,27 @@ async def test_set_schedule_service_call(hass):
 
 
 @pytest.mark.asyncio
+async def test_set_schedule_service_exceeds_max_groups(hass):
+    """Test calling foxess.set_schedule with more than 8 groups raises an error."""
+    with patch.dict(hass.data, {DOMAIN: {}}):
+        async_setup_services(hass)
+        too_many_groups = [{"enable": 1, "workMode": "SelfUse"}] * 9
+        with pytest.raises(
+            HomeAssistantError,
+            match="FoxESS Cloud scheduler supports a maximum of 8 schedule slots, but received 9",
+        ):
+            await hass.services.async_call(
+                DOMAIN,
+                "set_schedule",
+                {
+                    "device_sn": "SN123",
+                    "groups": too_many_groups,
+                },
+                blocking=True,
+            )
+
+
+@pytest.mark.asyncio
 async def test_set_schedule_service_unknown_device(hass):
     """Test calling foxess.set_schedule with unknown device SN raises error."""
     with patch.dict(hass.data, {DOMAIN: {}}):

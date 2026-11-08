@@ -144,6 +144,23 @@ async def test_step2_shown_after_valid_api_key(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_step1_strips_api_key_whitespace(hass: HomeAssistant) -> None:
+    """Whitespace around the API key is stripped."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)) as mock_fetch:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"apiKey": "  my-secret-key-123  \n"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    mock_fetch.assert_called_once_with(hass, "my-secret-key-123")
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_step2_preselects_single_device(hass: HomeAssistant) -> None:
     """When only 1 device is returned, it is suggested by default."""
     result = await hass.config_entries.flow.async_init(

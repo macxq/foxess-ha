@@ -148,3 +148,4 @@ test_config/
 docs/superpowers/
 
 .playwright-mcp/
+scratch/

@@ -1,5 +1,21 @@
 # Releases
 
+## [v0.60.0b3]
+```yaml
+title: "Mode Scheduler 8-Slot Boundary, Parameter Semantics & Config Flow Improvements (Beta 3) (#201, #407)"
+date: "2026-11-08"
+```
+
+### ⏱️ Mode Scheduler Refinements & Validation (Beta 3) (#201)
+- **8-Slot Boundary Guard (`foxess.set_schedule`)**: The FoxESS Cloud OpenAPI enforces a strict maximum of 8 schedule slots per inverter. The service now validates payload length and raises a clear `HomeAssistantError` if more than 8 groups are provided, preventing cryptic `40257 Parameters do not meet expectations` API errors from the cloud (#201, thanks to @Scaenicus).
+- **Scheduler Semantics & Group Parameters Documentation**: Documented key parameter roles in `services.yaml` and `README.md`:
+  - `ForceCharge`: `extraParam.maxSoc` acts as the charge target (*Period Max SOC*).
+  - `SelfUse` / `Backup`: `extraParam.minSocOnGrid` acts as the discharge floor (*Period Min SOC*).
+  - *Remaining Time Mode*: Documented that FoxESS Cloud resets non-scheduled periods to `Self-use` on schedule write, and how to use explicit `Backup` slots for idle hours.
+
+### 🔑 Config Flow Robustness (#407)
+- **API Key Whitespace Trimming**: Automatically strips leading and trailing whitespace from entered API keys during initial setup and re-configuration, preventing connection errors caused by accidental copy-paste spaces.
+
 ## [v0.60.0b2]
 ```yaml
 title: "Cumulative Energy Guard & Battery Scheduling Fixes (Beta 2) (#404, #405)"
