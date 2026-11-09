@@ -935,6 +935,15 @@ async def _async_setup_foxess(
 
 
 
+def _is_ok(response: dict) -> bool:
+    """Return True when a FoxESS OpenAPI response reports success.
+
+    Relies on ``errno == 0`` only; the ``msg`` changes occasionaly
+    so it's not a reliable signal.
+    """
+    return response.get("errno") == 0
+
+
 async def getOADeviceDetail(hass, allData, devicesn, apiKey):
     client = FoxESSApiClient(hass)
     res, response, elapsed_ms = await client.async_get_device_detail(
@@ -944,9 +953,7 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
         _LOGGER.debug("Unable to get OA Device Detail from FoxESS Cloud")
         return res
 
-    if response.get("errno") == 0 and (
-        response.get("msg") in ("success", "Operation successful")
-    ):
+    if _is_ok(response):
         allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
         _LOGGER.debug("OA Device Detail Good Response: %s", response.get("result"))
         result = response["result"]
@@ -979,9 +986,7 @@ async def getOADeviceList(hass, allData, devicesn, apiKey):
         _LOGGER.debug("Unable to get OA Device List from FoxESS Cloud")
         return res
 
-    if response.get("errno") == 0 and (
-        response.get("msg") in ("success", "Operation successful")
-    ):
+    if _is_ok(response):
         allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
         _LOGGER.debug("OA Device List Good Response: %s", response.get("result"))
         result_data = response.get("result", {}).get("data", [])
@@ -1030,9 +1035,7 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
             _LOGGER.debug("Unable to get OA Battery Settings from FoxESS Cloud")
             return res
 
-        if response.get("errno") == 0 and (
-            response.get("msg") in ("success", "Operation successful")
-        ):
+        if _is_ok(response):
             _LOGGER.debug(
                 "OA Battery Settings Good Response: %s", response.get("result")
             )
@@ -1131,9 +1134,7 @@ async def getReport(hass, allData, apiKey, devicesn):
         _LOGGER.debug("Unable to get OA Report from FoxESS Cloud")
         return res
 
-    if response.get("errno") == 0 and (
-        response.get("msg") in ("success", "Operation successful")
-    ):
+    if _is_ok(response):
         _LOGGER.debug("OA Report Data fetched OK: %s", response)
         result = response.get("result", [])
         today = now.day
@@ -1175,9 +1176,7 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
         _LOGGER.debug("Unable to get OA Daily Generation Report from FoxESS Cloud")
         return res
 
-    if response.get("errno") == 0 and (
-        response.get("msg") in ("success", "Operation successful")
-    ):
+    if _is_ok(response):
         _LOGGER.debug("OA Daily Generation Report Data fetched OK Response: %s", response)
 
         result_data = response.get("result")
@@ -1330,9 +1329,7 @@ async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False
         _LOGGER.debug("Unable to get OA Variables from FoxESS Cloud")
         return res
 
-    if response.get("errno") == 0 and (
-        response.get("msg") in ("success", "Operation successful")
-    ):
+    if _is_ok(response):
         allData["raw"]["ResponseTime"] = max(0, elapsed_ms)
         test = response.get("result")
         if not test or not isinstance(test, list):
