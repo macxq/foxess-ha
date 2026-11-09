@@ -1185,3 +1185,33 @@ async def test_show_unknown_zero_offline_behavior(hass: HomeAssistant):
 
 
 
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_device_detail_accepts_msg_with_full_stop(hass: HomeAssistant):
+    """A successful response whose msg reads 'Operation successful.' must parse as OK."""
+    response = {
+        "errno": 0,
+        "msg": "Operation successful.",
+        "result": {
+            "deviceSN": "SN1",
+            "stationName": "Home",
+            "hasBattery": True,
+            "masterVersion": "1.58",
+            "batteryList": [{"batterySN": "B1", "type": "bmu", "capacity": 11520}],
+            "function": {"scheduler": True},
+            "status": 1,
+        },
+    }
+    allData = {"raw": {}, "addressbook": {}}
+    with patch(
+        "custom_components.foxess.sensor.FoxESSApiClient.async_get_device_detail",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, response, 120),
+    ):
+        res = await sensor.getOADeviceDetail(hass, allData, "SN1", "key")
+
+    assert res is sensor.FetchResult.OK
+    assert allData["addressbook"]["plantName"] == "Home"
+    assert allData["addressbook"]["masterVersion"] == "1.58"
+    assert isinstance(allData["addressbook"]["batteryList"], list)
