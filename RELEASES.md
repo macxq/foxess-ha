@@ -1,5 +1,26 @@
 # Releases
 
+## [v0.61]
+```yaml
+title: "Battery Storage Control, Scheduling Automation & Cloud API Hotfix (#409, #410, #201, #404, #19)"
+date: "2026-11-09"
+```
+
+### 🚨 Critical FoxESS Cloud API Fix (#409, #410)
+- **API Response Punctuation Compatibility**: The FoxESS Cloud backend deployed an update changing its success message string to `"Operation successful."` (with a period), which broke strict string matching in previous versions and caused all sensors to show as `Unavailable`. Response handling now strictly verifies `errno == 0` via `_is_ok()` regardless of message wording or punctuation (#409, #410 by @AdamLeyshon).
+
+### 🔋 Battery Storage Control & Automation (#19, #381)
+- **Battery State-of-Charge (SoC) Controls (`number`)**: Added configurable number entities for `Min SoC` (reserve cut-off) and `Min SoC on Grid` (grid charge cut-off) with automatic cross-entity clamping (`Min SoC <= Min SoC on Grid`).
+- **Inverter Work Mode Selection (`select`)**: Added `Work Mode` select entity to switch between `Self-Use`, `Feed-in`, `Backup`, and `Peak Shaving` modes, protected with conflict prevention when schedule mode is active (#323).
+- **Mode Scheduler Toggle (`switch`)**: Added `Mode Scheduler` switch to enable or disable the inverter's cloud schedule, exposing configured schedule groups and force charge times in state attributes (#201).
+- **Automated Scheduling Service (`foxess.set_schedule`)**: Registered service allowing automations (e.g. night-time cheap tariff charging or dynamic price schedules like Octopus Agile, Nord Pool, Tibber) to configure schedule time segments with auto-activation and validation against the 8-slot cloud limit (#201).
+- **Legacy & AIO Force Charge Scheduling (`foxess.set_force_charge_times`)**: Added service and endpoints for inverters like AIO-H3 and older models that do not use the Mode Scheduler (#352).
+
+### 🛡️ Cumulative Energy Guard & Stability (#404, #405, #407)
+- **Monotonic Lifetime Guard (`cumulative`)**: Rejects sudden cloud regression readings (e.g. `0.0` or `0.3 kWh` reported at night on micro-inverters) on `FoxESS - Energy Generated Cumulative` using persistent `RestoreEntity` storage, preventing phantom energy dashboard spikes (#404, #405 by @neuhubereco).
+- **Offline Zeroing for Micro-Inverters (`show_unknown_zero`)**: Option to report `0.0` for solar power, current, and voltage instead of `unavailable` after sunset, while keeping daily energy values (#360, #365).
+- **API Key Whitespace Trimming**: Automatically trims leading and trailing spaces from API keys during setup and options flow to avoid copy-paste auth errors (#407).
+
 ## [v0.60.0b3]
 ```yaml
 title: "Mode Scheduler 8-Slot Boundary, Parameter Semantics & Config Flow Improvements (Beta 3) (#201, #407)"
