@@ -129,6 +129,14 @@ class FoxESSWorkModeSelect(CoordinatorEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected work mode."""
+        ctx = getattr(self, "_context", None)
+        _LOGGER.info(
+            "Work Mode change to '%s' requested for %s (context_id=%s, user_id=%s)",
+            option,
+            self._device_sn,
+            getattr(ctx, "id", None),
+            getattr(ctx, "user_id", None),
+        )
         data = getattr(self.coordinator, "data", {}) or {}
         if data.get("schedulerEnabled"):
             raise HomeAssistantError(

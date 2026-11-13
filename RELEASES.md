@@ -1,5 +1,19 @@
 # Releases
 
+## [v0.61.1]
+```yaml
+title: "Scheduler Polling Isolation & Write Operation Audit Logging (#413)"
+date: "2026-11-13"
+```
+
+### 🛡️ Mode Scheduler Isolation & Cloud Overwrite Protection (#413)
+- **Prevent Legacy `forceChargeTime` Collision**: Modern hybrid inverters equipped with Mode Scheduler (`function.scheduler == True`, such as FoxESS KH, H3, and H1 G2 series) now strictly bypass legacy `/op/v0/device/battery/forceChargeTime/get` polling. This resolves an issue where FoxESS Cloud backends would react to concurrent legacy reads by resetting or overwriting active Mode Scheduler schedules with default templates (e.g., 10.5 kW 15:00–19:00 slots as reported in #413 by @aehmcl-eng).
+- **Graceful Legacy Model Support**: Inverters without modern scheduler support (`function.scheduler == False` or legacy firmware such as AIO-H3) continue polling legacy force charge windows automatically.
+
+### 📝 Write Operation Audit Logging & Caller Tracking
+- **Automatic Write Operation Audit Logs**: All state-modifying requests (`number` Min SoC / Min SoC on Grid, `select` Work Mode, `switch` Mode Scheduler, and domain services `foxess.set_schedule` and `foxess.set_force_charge_times`) now emit standard `INFO`-level audit records containing caller context (`context_id`, `user_id`, `parent_id`), parameters, and execution outcomes. Any automated or manual state modification is instantly identifiable in standard Home Assistant logs without requiring debug mode.
+- **Service Cross-Validation**: `foxess.set_force_charge_times` now checks if the target device supports the modern Mode Scheduler and outputs a clear advisory warning in logs to recommend `foxess.set_schedule`.
+
 ## [v0.61]
 ```yaml
 title: "Battery Storage Control, Scheduling Automation & Cloud API Hotfix (#409, #410, #201, #404, #19)"

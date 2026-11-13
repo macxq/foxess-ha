@@ -164,3 +164,48 @@ async def test_api_client_high_level_methods():
     call_args = mock_session.request.call_args
     assert call_args[0][0] == "POST"
     assert call_args[1]["json"] == {"sn": "SN123", "variables": ["pvPower", "SoC"]}
+
+
+@pytest.mark.asyncio
+async def test_api_client_write_logging(caplog):
+    """Verify write requests log at INFO level with payload and result."""
+    import logging
+
+    mock_resp = AsyncMock()
+    mock_resp.status = 200
+    mock_resp.json = AsyncMock(
+        return_value={"errno": 0, "msg": "success", "result": {}}
+    )
+
+    mock_session = MagicMock()
+    mock_session.request.return_value.__aenter__.return_value = mock_resp
+
+    client = FoxESSApiClient(session=mock_session)
+    with caplog.at_level(logging.INFO):
+        res, data, _ = await client.async_set_battery_soc("SN123", "TOKEN", 15, 20)
+
+    assert res == FetchResult.OK
+    assert "FoxESS OpenAPI write request: POST /op/v0/device/battery/soc/set" in caplog.text
+    assert "FoxESS OpenAPI write to /op/v0/device/battery/soc/set succeeded" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_api_client_write_failure_logging(caplog):
+    """Verify write request failures log at WARNING level."""
+    import logging
+
+    mock_resp = AsyncMock()
+    mock_resp.status = 200
+    mock_resp.json = AsyncMock(
+        return_value={"errno": 40250, "msg": "device offline", "result": None}
+    )
+
+    mock_session = MagicMock()
+    mock_session.request.return_value.__aenter__.return_value = mock_resp
+
+    client = FoxESSApiClient(session=mock_session)
+    with caplog.at_level(logging.INFO):
+        res, data, _ = await client.async_set_battery_soc("SN123", "TOKEN", 15, 20)
+
+    assert res == FetchResult.ERROR
+    assert "FoxESS OpenAPI write to /op/v0/device/battery/soc/set failed with errno=40250" in caplog.text

@@ -1067,6 +1067,105 @@ async def test_get_oa_work_mode_and_scheduler(hass: HomeAssistant):
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_oa_work_mode_and_scheduler_skips_force_charge_when_scheduler_supported(
+    hass: HomeAssistant,
+):
+    """Verify getOAWorkModeAndScheduler skips legacy forceChargeTimes when scheduler is supported."""
+    all_data = {
+        "workMode": None,
+        "schedulerEnabled": False,
+        "schedulerGroups": [],
+        "addressbook": {"function": {"scheduler": True}},
+    }
+
+    wm_payload = {"errno": 0, "result": {"values": {"WorkMode": "SelfUse"}}}
+    flag_payload = {"errno": 0, "result": {"enable": 1}}
+    groups_payload = {
+        "errno": 0,
+        "result": {
+            "groups": [{"enable": 1, "startHour": 2, "workMode": "ForceCharge"}]
+        },
+    }
+
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_work_mode",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, wm_payload, 50),
+    ) as mock_wm, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_flag",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, flag_payload, 50),
+    ) as mock_flag, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_groups",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, groups_payload, 50),
+    ) as mock_grp, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_force_charge_times",
+        new_callable=AsyncMock,
+    ) as mock_fct:
+        await sensor.getOAWorkModeAndScheduler(hass, all_data, "SN1", "key1")
+
+        assert mock_wm.call_count == 1
+        assert mock_flag.call_count == 1
+        assert mock_grp.call_count == 1
+        assert mock_fct.call_count == 0
+        assert all_data["workMode"] == "SelfUse"
+        assert all_data["schedulerEnabled"] is True
+        assert len(all_data["schedulerGroups"]) == 1
+        assert "forceChargeTimes" not in all_data
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_get_oa_work_mode_and_scheduler_legacy_force_charge_polling(
+    hass: HomeAssistant,
+):
+    """Verify getOAWorkModeAndScheduler polls legacy forceChargeTimes when scheduler is False."""
+    all_data = {
+        "workMode": None,
+        "addressbook": {"function": {"scheduler": False}},
+    }
+
+    wm_payload = {"errno": 0, "result": {"values": {"WorkMode": "SelfUse"}}}
+    fct_payload = {
+        "errno": 0,
+        "result": [{"enable1": 1, "enable2": 0, "startTime1": {"hour": 1, "minute": 0}}],
+    }
+
+    with patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_work_mode",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, wm_payload, 50),
+    ) as mock_wm, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_flag",
+        new_callable=AsyncMock,
+    ) as mock_flag, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_scheduler_groups",
+        new_callable=AsyncMock,
+    ) as mock_grp, patch.object(
+        sensor.FoxESSApiClient,
+        "async_get_force_charge_times",
+        new_callable=AsyncMock,
+        return_value=(sensor.FetchResult.OK, fct_payload, 50),
+    ) as mock_fct:
+        await sensor.getOAWorkModeAndScheduler(hass, all_data, "SN1", "key1")
+
+        assert mock_wm.call_count == 1
+        assert mock_flag.call_count == 0
+        assert mock_grp.call_count == 0
+        assert mock_fct.call_count == 1
+        assert all_data["workMode"] == "SelfUse"
+        assert all_data["forceChargeTimes"]["enable1"] == 1
+        assert "schedulerGroups" not in all_data
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_get_report_parses_monthly_values_for_today(hass: HomeAssistant):
     """Verify getReport parses monthly report index corresponding to today."""
     import datetime
