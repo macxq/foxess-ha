@@ -1080,29 +1080,46 @@ async def getOAWorkModeAndScheduler(hass, allData, devicesn, apiKey):
                 allData["workMode"] = work_mode
         await asyncio.sleep(1)
 
-        res_flag, resp_flag, _ = await client.async_get_scheduler_flag(devicesn, apiKey)
-        if res_flag is FetchResult.OK and resp_flag and resp_flag.get("errno") == 0:
-            result_flag = resp_flag.get("result", {})
-            enable = result_flag.get("enable")
-            if enable is not None:
-                allData["schedulerEnabled"] = bool(enable)
-        await asyncio.sleep(1)
+        function_dict = allData.get("addressbook", {}).get("function")
+        has_scheduler = (
+            function_dict.get("scheduler") if isinstance(function_dict, dict) else None
+        )
 
-        res_grp, resp_grp, _ = await client.async_get_scheduler_groups(devicesn, apiKey)
-        if res_grp is FetchResult.OK and resp_grp and resp_grp.get("errno") == 0:
-            result_grp = resp_grp.get("result", {})
-            groups = result_grp.get("groups")
-            if isinstance(groups, list):
-                allData["schedulerGroups"] = groups
-        await asyncio.sleep(1)
+        if has_scheduler is not False:
+            res_flag, resp_flag, _ = await client.async_get_scheduler_flag(devicesn, apiKey)
+            if res_flag is FetchResult.OK and resp_flag and resp_flag.get("errno") == 0:
+                result_flag = resp_flag.get("result", {})
+                enable = result_flag.get("enable")
+                if enable is not None:
+                    allData["schedulerEnabled"] = bool(enable)
+            await asyncio.sleep(1)
 
-        res_fct, resp_fct, _ = await client.async_get_force_charge_times(devicesn, apiKey)
-        if res_fct is FetchResult.OK and resp_fct and resp_fct.get("errno") == 0:
-            result_fct = resp_fct.get("result", {})
-            if isinstance(result_fct, list) and result_fct:
-                result_fct = result_fct[0]
-            if isinstance(result_fct, dict):
-                allData["forceChargeTimes"] = result_fct
+            res_grp, resp_grp, _ = await client.async_get_scheduler_groups(devicesn, apiKey)
+            if res_grp is FetchResult.OK and resp_grp and resp_grp.get("errno") == 0:
+                result_grp = resp_grp.get("result", {})
+                groups = result_grp.get("groups")
+                if isinstance(groups, list):
+                    allData["schedulerGroups"] = groups
+                    _LOGGER.debug("OA Scheduler groups polled for %s: %s", devicesn, groups)
+            await asyncio.sleep(1)
+
+        # Only query legacy forceChargeTime on inverters that do not support the modern Mode Scheduler
+        if has_scheduler is False or (
+            has_scheduler is None and not allData.get("schedulerGroups")
+        ):
+            res_fct, resp_fct, _ = await client.async_get_force_charge_times(devicesn, apiKey)
+            if res_fct is FetchResult.OK and resp_fct and resp_fct.get("errno") == 0:
+                result_fct = resp_fct.get("result", {})
+                if isinstance(result_fct, list) and result_fct:
+                    result_fct = result_fct[0]
+                if isinstance(result_fct, dict):
+                    allData["forceChargeTimes"] = result_fct
+                    _LOGGER.debug("OA Force Charge Times polled for %s: %s", devicesn, result_fct)
+        else:
+            _LOGGER.debug(
+                "Skipping legacy forceChargeTime polling for %s (inverter supports Mode Scheduler)",
+                devicesn,
+            )
     except Exception as err:
         _LOGGER.debug("Error fetching work mode or scheduler settings: %s", err)
 

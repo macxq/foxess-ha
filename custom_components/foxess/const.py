@@ -57,6 +57,15 @@ _AUTH_ERRNO = {41808, 41809}
 # Maximum schedule groups supported by FoxESS Cloud OpenAPI
 MAX_SCHEDULER_GROUPS = 8
 
+# Endpoints that write/modify inverter or battery configuration
+WRITE_ENDPOINTS = {
+    _ENDPOINT_OA_BATTERY_SOC_SET,
+    _ENDPOINT_OA_SETTING_SET,
+    _ENDPOINT_OA_SCHEDULER_FLAG_SET,
+    _ENDPOINT_OA_SCHEDULER_ENABLE,
+    _ENDPOINT_OA_BATTERY_FORCE_CHARGE_SET,
+}
+
 # Key under hass.data where YAML-configured device info is stored
 YAML_CONFIGS_KEY = "foxess_yaml_configs"
 

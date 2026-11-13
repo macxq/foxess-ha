@@ -133,6 +133,15 @@ class FoxESSBatMinSoCNumber(_FoxESSBaseSoCNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set Min SoC with cross-clamping to minSocOnGrid."""
+        ctx = getattr(self, "_context", None)
+        _LOGGER.info(
+            "Set %s to %s%% for %s (context_id=%s, user_id=%s)",
+            self._attr_name,
+            value,
+            self._device_sn,
+            getattr(ctx, "id", None),
+            getattr(ctx, "user_id", None),
+        )
         new_min_soc = int(value)
         data = getattr(self.coordinator, "data", {}) or {}
         battery = data.get("battery", {}) if isinstance(data, dict) else {}
@@ -185,6 +194,15 @@ class FoxESSBatMinSoCOnGridNumber(_FoxESSBaseSoCNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set Min SoC on Grid with cross-clamping to minSoc."""
+        ctx = getattr(self, "_context", None)
+        _LOGGER.info(
+            "Set %s to %s%% for %s (context_id=%s, user_id=%s)",
+            self._attr_name,
+            value,
+            self._device_sn,
+            getattr(ctx, "id", None),
+            getattr(ctx, "user_id", None),
+        )
         new_grid_soc = int(value)
         data = getattr(self.coordinator, "data", {}) or {}
         battery = data.get("battery", {}) if isinstance(data, dict) else {}

@@ -236,3 +236,54 @@ async def test_set_force_charge_times_api_error(hass):
                     },
                     blocking=True,
                 )
+
+
+@pytest.mark.asyncio
+async def test_set_force_charge_times_warns_on_modern_scheduler(hass, caplog):
+    """Test calling foxess.set_force_charge_times warns when inverter has scheduler."""
+    import logging
+
+    coordinator = AsyncMock()
+    coordinator.data = {"addressbook": {"function": {"scheduler": True}}}
+    coordinator.devicesn = "SN123"
+    coordinator.apiKey = "TEST_KEY"
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"deviceSN": "SN123", "apiKey": "TEST_KEY"},
+        entry_id="mock_entry",
+    )
+    with patch.dict(
+        hass.data,
+        {
+            DOMAIN: {
+                entry.entry_id: {
+                    "coordinator": coordinator,
+                    "apiKey": "TEST_KEY",
+                    "deviceSN": "SN123",
+                }
+            }
+        },
+    ):
+        async_setup_services(hass)
+        with patch(
+            "custom_components.foxess.FoxESSApiClient.async_set_force_charge_times",
+            new_callable=AsyncMock,
+        ) as mock_set:
+            mock_set.return_value = (FetchResult.OK, {"errno": 0, "msg": "success"}, 40.0)
+
+            with caplog.at_level(logging.INFO):
+                await hass.services.async_call(
+                    DOMAIN,
+                    "set_force_charge_times",
+                    {
+                        "device_sn": "SN123",
+                        "start_time_1": "02:00",
+                        "end_time_1": "05:00",
+                    },
+                    blocking=True,
+                )
+
+            assert "supports Mode Scheduler" in caplog.text
+            assert "Service foxess.set_force_charge_times called for SN123" in caplog.text
+            assert "Service foxess.set_force_charge_times completed successfully for SN123" in caplog.text

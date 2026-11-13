@@ -36,6 +36,7 @@ from .const import (
     _ENDPOINT_OA_SETTING_SET,
     DEFAULT_TIMEOUT,
     FetchResult,
+    WRITE_ENDPOINTS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -141,6 +142,17 @@ class FoxESSApiClient:
             else:
                 kwargs["json"] = json_data
 
+        is_write = path in WRITE_ENDPOINTS
+        if is_write:
+            _LOGGER.info("FoxESS OpenAPI write request: %s %s payload=%s", method, path, json_data)
+        else:
+            _LOGGER.debug(
+                "FoxESS OpenAPI request: %s %s (payload: %s)",
+                method,
+                path,
+                json_data if method == "POST" else None,
+            )
+
         t0 = time.time()
         try:
             async with self.session.request(method, url, **kwargs) as resp:
@@ -165,14 +177,42 @@ class FoxESSApiClient:
                     if errno in _AUTH_ERRNO:
                         _LOGGER.warning("FoxESS API authentication failed with errno: %s", errno)
                         return FetchResult.AUTH_FAILED, data, elapsed_ms
-                    _LOGGER.debug("FoxESS API returned error response: %s", data)
+                    if is_write:
+                        _LOGGER.warning(
+                            "FoxESS OpenAPI write to %s failed with errno=%s: %s",
+                            path,
+                            errno,
+                            data.get("msg") if isinstance(data, dict) else "unknown error",
+                        )
+                    else:
+                        _LOGGER.debug("FoxESS API returned error response: %s", data)
                     return FetchResult.ERROR, data, elapsed_ms
+
+                if is_write:
+                    _LOGGER.info(
+                        "FoxESS OpenAPI write to %s succeeded in %d ms: errno=%s, msg=%s",
+                        path,
+                        elapsed_ms,
+                        errno,
+                        data.get("msg"),
+                    )
+                else:
+                    _LOGGER.debug(
+                        "FoxESS OpenAPI response for %s %s [%d ms]: errno=%s",
+                        method,
+                        path,
+                        elapsed_ms,
+                        errno,
+                    )
 
                 return FetchResult.OK, data, elapsed_ms
 
         except (TimeoutError, asyncio.TimeoutError):
             elapsed_ms = round((time.time() - t0) * 1000)
-            _LOGGER.debug("Timeout connecting to FoxESS API: %s", url)
+            if is_write:
+                _LOGGER.warning("Timeout connecting to FoxESS API during write to %s", url)
+            else:
+                _LOGGER.debug("Timeout connecting to FoxESS API: %s", url)
             return FetchResult.ERROR, None, elapsed_ms
         except ClientError as err:
             elapsed_ms = round((time.time() - t0) * 1000)
@@ -187,7 +227,10 @@ class FoxESSApiClient:
             ):
                 _LOGGER.debug("DNS error connecting to FoxESS API (%s): %s", url, err)
                 return FetchResult.DNS_TIMEOUT, None, elapsed_ms
-            _LOGGER.debug("Network error connecting to FoxESS API (%s): %s", url, err)
+            if is_write:
+                _LOGGER.warning("Network error during FoxESS API write request (%s): %s", url, err)
+            else:
+                _LOGGER.debug("Network error connecting to FoxESS API (%s): %s", url, err)
             return FetchResult.ERROR, None, elapsed_ms
         except Exception as err:
             elapsed_ms = round((time.time() - t0) * 1000)

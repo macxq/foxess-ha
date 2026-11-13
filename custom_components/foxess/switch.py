@@ -118,6 +118,13 @@ class FoxESSSchedulerSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the mode scheduler."""
+        ctx = getattr(self, "_context", None)
+        _LOGGER.info(
+            "Mode Scheduler turn_on requested for %s (context_id=%s, user_id=%s)",
+            self._device_sn,
+            getattr(ctx, "id", None),
+            getattr(ctx, "user_id", None),
+        )
         res, resp, _ = await self._client.async_set_scheduler_flag(
             self._device_sn, self._api_key, True
         )
@@ -135,6 +142,13 @@ class FoxESSSchedulerSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the mode scheduler."""
+        ctx = getattr(self, "_context", None)
+        _LOGGER.info(
+            "Mode Scheduler turn_off requested for %s (context_id=%s, user_id=%s)",
+            self._device_sn,
+            getattr(ctx, "id", None),
+            getattr(ctx, "user_id", None),
+        )
         res, resp, _ = await self._client.async_set_scheduler_flag(
             self._device_sn, self._api_key, False
         )

@@ -87,6 +87,18 @@ def async_setup_services(hass: HomeAssistant) -> None:
         enable: bool = call.data.get("enable", True)
         is_default: bool = call.data.get("is_default", False)
 
+        caller_ctx = getattr(call, "context", None)
+        _LOGGER.info(
+            "Service foxess.set_schedule called for %s (context_id=%s, user_id=%s, parent_id=%s, groups=%d, enable=%s, is_default=%s)",
+            device_sn,
+            getattr(caller_ctx, "id", None),
+            getattr(caller_ctx, "user_id", None),
+            getattr(caller_ctx, "parent_id", None),
+            len(groups),
+            enable,
+            is_default,
+        )
+
         if len(groups) > MAX_SCHEDULER_GROUPS:
             raise HomeAssistantError(
                 f"FoxESS Cloud scheduler supports a maximum of {MAX_SCHEDULER_GROUPS} schedule slots, "
@@ -120,6 +132,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
             target_coordinator.data["schedulerGroups"] = groups
             await target_coordinator.async_request_refresh()
 
+        _LOGGER.info(
+            "Service foxess.set_schedule completed successfully for %s (%d groups)",
+            device_sn,
+            len(groups),
+        )
+
     async def async_handle_set_force_charge_times(call: ServiceCall) -> None:
         """Handle foxess.set_force_charge_times service call."""
         device_sn: str = call.data["device_sn"]
@@ -130,9 +148,29 @@ def async_setup_services(hass: HomeAssistant) -> None:
         start_time_2 = _parse_time_param(call.data.get("start_time_2"))
         end_time_2 = _parse_time_param(call.data.get("end_time_2"))
 
+        caller_ctx = getattr(call, "context", None)
+        _LOGGER.info(
+            "Service foxess.set_force_charge_times called for %s (context_id=%s, user_id=%s, parent_id=%s, enable_1=%s, enable_2=%s)",
+            device_sn,
+            getattr(caller_ctx, "id", None),
+            getattr(caller_ctx, "user_id", None),
+            getattr(caller_ctx, "parent_id", None),
+            enable_1,
+            enable_2,
+        )
+
         target_coordinator, client, target_api_key = _get_target_device_info(device_sn)
         if not target_api_key:
             raise HomeAssistantError(f"FoxESS device with SN '{device_sn}' not found")
+
+        if target_coordinator and isinstance(getattr(target_coordinator, "data", None), dict):
+            function_dict = target_coordinator.data.get("addressbook", {}).get("function")
+            if isinstance(function_dict, dict) and function_dict.get("scheduler") is True:
+                _LOGGER.warning(
+                    "Device %s supports Mode Scheduler. Using legacy foxess.set_force_charge_times "
+                    "may conflict with Mode Scheduler settings. Consider using foxess.set_schedule instead.",
+                    device_sn,
+                )
 
         res, resp, _ = await client.async_set_force_charge_times(
             device_sn,
@@ -159,6 +197,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 "endTime2": end_time_2,
             }
             await target_coordinator.async_request_refresh()
+
+        _LOGGER.info(
+            "Service foxess.set_force_charge_times completed successfully for %s",
+            device_sn,
+        )
 
     if not hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):
         hass.services.async_register(
