@@ -22,6 +22,15 @@ CONF_REDUCE_API_CALLS = "reduceAPICalls"
 DEFAULT_REDUCE_API_CALLS = False
 CONF_SHOW_UNKNOWN_ZERO = "show_unknown_zero"
 DEFAULT_SHOW_UNKNOWN_ZERO = False
+CONF_API_DOMAIN = "api_domain"
+
+# API Domains
+API_DOMAIN_GLOBAL = "https://www.foxesscloud.com"
+API_DOMAIN_US = "https://portal.foxesscloud.us"
+API_DOMAINS = {
+    API_DOMAIN_GLOBAL: "Global / Europe (www.foxesscloud.com)",
+    API_DOMAIN_US: "North America (portal.foxesscloud.us)",
+}
 
 # Timing and Intervals
 SCAN_MINUTES = 1  # number of minutes between coordinator refresh evaluations
@@ -32,7 +41,7 @@ RETRY_IN_5_MINS = 25
 RETRY_IN_10_MINS = 20
 
 # API Endpoints
-_ENDPOINT_OA_DOMAIN = "https://www.foxesscloud.com"
+_ENDPOINT_OA_DOMAIN = API_DOMAIN_GLOBAL
 _ENDPOINT_OA_BATTERY_SETTINGS = "/op/v0/device/battery/soc/get?sn="
 _ENDPOINT_OA_BATTERY_SOC_SET = "/op/v0/device/battery/soc/set"
 _ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET = "/op/v0/device/battery/forceChargeTime/get"

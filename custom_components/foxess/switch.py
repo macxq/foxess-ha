@@ -16,6 +16,7 @@ from .api import FoxESSApiClient
 from .const import (
     ATTR_DEVICE_TYPE,
     ATTR_MASTER,
+    CONF_API_DOMAIN,
     DOMAIN,
     FetchResult,
     _ENDPOINT_OA_DOMAIN,
@@ -78,7 +79,16 @@ class FoxESSSchedulerSwitch(CoordinatorEntity, SwitchEntity):
         self._device_id = device_id
         self._device_sn = device_sn
         self._api_key = api_key
-        self._client = FoxESSApiClient(coordinator.hass if hasattr(coordinator, "hass") else None)
+        coord_config = getattr(coordinator, "config", None)
+        self._base_url = (
+            coord_config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+            if isinstance(coord_config, dict)
+            else _ENDPOINT_OA_DOMAIN
+        )
+        self._client = FoxESSApiClient(
+            coordinator.hass if hasattr(coordinator, "hass") else None,
+            base_url=self._base_url,
+        )
 
     @property
     def is_on(self) -> bool:
@@ -113,7 +123,7 @@ class FoxESSSchedulerSwitch(CoordinatorEntity, SwitchEntity):
             model=addressbook.get(ATTR_DEVICE_TYPE),
             sw_version=addressbook.get(ATTR_MASTER),
             serial_number=devicesn,
-            configuration_url=_ENDPOINT_OA_DOMAIN,
+            configuration_url=self._base_url,
         )
 
     async def async_turn_on(self, **kwargs: Any) -> None:

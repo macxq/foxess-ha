@@ -1,5 +1,15 @@
 # Releases
 
+## [v0.61.2]
+```yaml
+title: "North American FoxESS Cloud API Region Support (#416)"
+date: "2026-11-25"
+```
+
+### 🌎 North American API Portal Support (#416)
+- **Regional Cloud Endpoint Selection**: Added a **FoxESS Cloud Region** selector during initial setup and in the integration options flow, allowing users with North American accounts to select **North America (`https://portal.foxesscloud.us`)** instead of the default **Global / Europe (`https://www.foxesscloud.com`)** endpoint (#416 by @Root-MtX).
+- **Full Platform & Service Routing**: All device discovery, telemetry polling, battery controls (`number`, `select`, `switch`), domain services, and device configuration links automatically route through the selected regional API domain.
+
 ## [v0.61.1]
 ```yaml
 title: "Scheduler Polling Isolation & Write Operation Audit Logging (#413)"

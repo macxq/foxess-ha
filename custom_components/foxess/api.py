@@ -85,13 +85,20 @@ class FoxESSApiClient:
         self,
         hass: HomeAssistant | None = None,
         session: aiohttp.ClientSession | None = None,
+        base_url: str = _ENDPOINT_OA_DOMAIN,
     ) -> None:
         """Initialise the FoxESS API client."""
         self._hass = hass
         self._session = session
+        self._base_url = (base_url or _ENDPOINT_OA_DOMAIN).rstrip("/")
         self._last_api_time: float = 0.0
         self._lock = asyncio.Lock()
         self._auth = GetAuth()
+
+    @property
+    def base_url(self) -> str:
+        """Return configured FoxESS API base URL."""
+        return self._base_url
 
     @property
     def session(self) -> aiohttp.ClientSession:
@@ -129,7 +136,7 @@ class FoxESSApiClient:
         await self.wait_for_api()
 
         headers = self._auth.get_signature(token=token, path=path)
-        url = url_override or f"{_ENDPOINT_OA_DOMAIN}{path}"
+        url = url_override or f"{self._base_url}{path}"
 
         kwargs: dict[str, Any] = {
             "headers": headers,
@@ -242,7 +249,7 @@ class FoxESSApiClient:
     ) -> tuple[FetchResult, dict[str, Any] | None, float]:
         """Fetch device detail."""
         path = _ENDPOINT_OA_DEVICE_DETAIL_V1 if v1_api else _ENDPOINT_OA_DEVICE_DETAIL
-        url = f"{_ENDPOINT_OA_DOMAIN}{path}?sn={devicesn}"
+        url = f"{self._base_url}{path}?sn={devicesn}"
         return await self.async_request("GET", path, token, url_override=url)
 
     async def async_get_device_list(
@@ -259,7 +266,7 @@ class FoxESSApiClient:
     ) -> tuple[FetchResult, dict[str, Any] | None, float]:
         """Fetch battery SoC and minSoc settings."""
         path = "/op/v0/device/battery/soc/get"
-        url = f"{_ENDPOINT_OA_DOMAIN}{_ENDPOINT_OA_BATTERY_SETTINGS}{devicesn}"
+        url = f"{self._base_url}{_ENDPOINT_OA_BATTERY_SETTINGS}{devicesn}"
         return await self.async_request("GET", path, token, url_override=url)
 
     async def async_get_report(
@@ -281,7 +288,7 @@ class FoxESSApiClient:
     ) -> tuple[FetchResult, dict[str, Any] | None, float]:
         """Fetch daily generation statistics."""
         path = "/op/v0/device/generation"
-        url = f"{_ENDPOINT_OA_DOMAIN}{_ENDPOINT_OA_DAILY_GENERATION}{devicesn}"
+        url = f"{self._base_url}{_ENDPOINT_OA_DAILY_GENERATION}{devicesn}"
         return await self.async_request(
             "GET", path, token, url_override=url, json_data={"sn": devicesn, "dimension": "day"}
         )
@@ -388,7 +395,7 @@ class FoxESSApiClient:
     ) -> tuple[FetchResult, dict[str, Any] | None, float]:
         """Fetch battery force charge time windows."""
         path = _ENDPOINT_OA_BATTERY_FORCE_CHARGE_GET
-        url = f"{_ENDPOINT_OA_DOMAIN}{path}?sn={sn}"
+        url = f"{self._base_url}{path}?sn={sn}"
         return await self.async_request("GET", path, token, url_override=url)
 
     async def async_set_force_charge_times(

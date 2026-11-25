@@ -13,7 +13,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .api import FoxESSApiClient
-from .const import DOMAIN, FetchResult, MAX_SCHEDULER_GROUPS
+from .const import (
+    _ENDPOINT_OA_DOMAIN,
+    CONF_API_DOMAIN,
+    DOMAIN,
+    FetchResult,
+    MAX_SCHEDULER_GROUPS,
+)
 from .sensor import FoxDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,9 +79,15 @@ def async_setup_services(hass: HomeAssistant) -> None:
             coord = entry_info.get("coordinator")
             coord_sn = entry_info.get("deviceSN") or getattr(coord, "devicesn", None)
             if coord_sn == device_sn:
+                coord_config = getattr(coord, "config", None)
+                base_url = (
+                    coord_config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+                    if isinstance(coord_config, dict)
+                    else _ENDPOINT_OA_DOMAIN
+                )
                 return (
                     coord,
-                    entry_info.get("client") or FoxESSApiClient(hass),
+                    entry_info.get("client") or FoxESSApiClient(hass, base_url=base_url),
                     entry_info.get("apiKey") or getattr(coord, "apiKey", None),
                 )
         return None, None, None
@@ -222,8 +234,9 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up FoxESS from a config entry."""
-    client = FoxESSApiClient(hass)
     config = {**entry.data, **entry.options}
+    base_url = config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+    client = FoxESSApiClient(hass, base_url=base_url)
     coordinator = FoxDataUpdateCoordinator(
         hass,
         config=config,

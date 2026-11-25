@@ -17,6 +17,7 @@ from .api import FoxESSApiClient
 from .const import (
     ATTR_DEVICE_TYPE,
     ATTR_MASTER,
+    CONF_API_DOMAIN,
     DOMAIN,
     FetchResult,
     _ENDPOINT_OA_DOMAIN,
@@ -83,7 +84,16 @@ class _FoxESSBaseSoCNumber(CoordinatorEntity, NumberEntity):
         self._device_id = device_id
         self._device_sn = device_sn
         self._api_key = api_key
-        self._client = FoxESSApiClient(coordinator.hass if hasattr(coordinator, "hass") else None)
+        coord_config = getattr(coordinator, "config", None)
+        self._base_url = (
+            coord_config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+            if isinstance(coord_config, dict)
+            else _ENDPOINT_OA_DOMAIN
+        )
+        self._client = FoxESSApiClient(
+            coordinator.hass if hasattr(coordinator, "hass") else None,
+            base_url=self._base_url,
+        )
 
     @property
     def device_info(self) -> DeviceInfo | None:
@@ -101,7 +111,7 @@ class _FoxESSBaseSoCNumber(CoordinatorEntity, NumberEntity):
             model=addressbook.get(ATTR_DEVICE_TYPE),
             sw_version=addressbook.get(ATTR_MASTER),
             serial_number=devicesn,
-            configuration_url=_ENDPOINT_OA_DOMAIN,
+            configuration_url=self._base_url,
         )
 
 

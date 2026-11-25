@@ -209,3 +209,36 @@ async def test_api_client_write_failure_logging(caplog):
 
     assert res == FetchResult.ERROR
     assert "FoxESS OpenAPI write to /op/v0/device/battery/soc/set failed with errno=40250" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_api_client_custom_base_url():
+    """Verify FoxESSApiClient routes requests to custom regional base_url (e.g. US portal)."""
+    mock_resp = AsyncMock()
+    mock_resp.status = 200
+    mock_resp.json = AsyncMock(return_value={"errno": 0, "msg": "success", "result": {}})
+
+    mock_session = MagicMock()
+    mock_session.request.return_value.__aenter__.return_value = mock_resp
+
+    us_domain = "https://portal.foxesscloud.us"
+    client = FoxESSApiClient(session=mock_session, base_url=f"{us_domain}/")
+    assert client.base_url == us_domain
+
+    # POST endpoint
+    res, _, _ = await client.async_get_device_list("us-key")
+    assert res == FetchResult.OK
+    assert mock_session.request.call_args[0][1] == f"{us_domain}/op/v0/device/list"
+
+    # GET endpoints with url_override
+    await client.async_get_device_detail("SN123", "us-key", v1_api=True)
+    assert mock_session.request.call_args[0][1] == f"{us_domain}/op/v1/device/detail?sn=SN123"
+
+    await client.async_get_battery_settings("SN123", "us-key")
+    assert mock_session.request.call_args[0][1] == f"{us_domain}/op/v0/device/battery/soc/get?sn=SN123"
+
+    await client.async_get_daily_generation("SN123", "us-key")
+    assert mock_session.request.call_args[0][1] == f"{us_domain}/op/v0/device/generation?sn=SN123"
+
+    await client.async_get_force_charge_times("SN123", "us-key")
+    assert mock_session.request.call_args[0][1] == f"{us_domain}/op/v0/device/battery/forceChargeTime/get?sn=SN123"
