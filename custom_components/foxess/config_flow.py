@@ -33,6 +33,9 @@ from .api import GetAuth, waitforAPI
 from .const import (
     _AUTH_ERRNO,
     _ENDPOINT_OA_DOMAIN,
+    API_DOMAIN_GLOBAL,
+    API_DOMAINS,
+    CONF_API_DOMAIN,
     CONF_APIKEY,
     CONF_DEVICEID,
     CONF_DEVICESN,
@@ -58,7 +61,9 @@ _DEVICE_LIST_PATH = "/op/v0/device/list"
 _DEVICE_LIST_ENDPOINT = _ENDPOINT_OA_DOMAIN + _DEVICE_LIST_PATH
 
 
-async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None]:
+async def _fetch_device_list(
+    hass, api_key: str, api_domain: str = _ENDPOINT_OA_DOMAIN
+) -> tuple[list[dict], str | None]:
     """Fetch the device list from FoxESS Cloud.
 
     Returns (devices, error_key). On success error_key is None and devices
@@ -66,12 +71,13 @@ async def _fetch_device_list(hass, api_key: str) -> tuple[list[dict], str | None
     """
     headers = GetAuth().get_signature(token=api_key, path=_DEVICE_LIST_PATH)
     session = async_get_clientsession(hass, verify_ssl=False)
+    endpoint = f"{(api_domain or _ENDPOINT_OA_DOMAIN).rstrip('/')}{_DEVICE_LIST_PATH}"
     try:
         # Rate limit guard: FoxESS OpenAPI enforces 1 request/second across account
         await waitforAPI()
         # This assumes that the user has a maximum of 25 inverters.
         resp = await session.post(
-            _DEVICE_LIST_ENDPOINT,
+            endpoint,
             headers=headers,
             json={"currentPage": 1, "pageSize": 25},
             timeout=30,
@@ -112,6 +118,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialise the config flow."""
         self._api_key: str | None = None
+        self._api_domain: str = API_DOMAIN_GLOBAL
         self._devices: list[dict] | None = None
 
     async def async_step_import(
@@ -148,6 +155,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_REDUCE_API_CALLS: import_data.get(
                     CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
                 ),
+                CONF_API_DOMAIN: import_data.get(CONF_API_DOMAIN, API_DOMAIN_GLOBAL),
             },
         )
 
@@ -157,13 +165,23 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             api_key = str(user_input[CONF_APIKEY]).strip()
-            devices, error = await _fetch_device_list(self.hass, api_key)
+            api_domain = user_input.get(CONF_API_DOMAIN, API_DOMAIN_GLOBAL)
+            if api_domain != API_DOMAIN_GLOBAL:
+                devices, error = await _fetch_device_list(self.hass, api_key, api_domain)
+            else:
+                devices, error = await _fetch_device_list(self.hass, api_key)
             if error:
                 errors["base"] = error
             else:
                 self._api_key = api_key
+                self._api_domain = api_domain
                 self._devices = devices
                 return await self.async_step_device()
+
+        domain_options = [
+            SelectOptionDict(value=url, label=label)
+            for url, label in API_DOMAINS.items()
+        ]
 
         return self.async_show_form(
             step_id="user",
@@ -172,7 +190,15 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                     {
                         vol.Required(CONF_APIKEY): TextSelector(
                             TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                        )
+                        ),
+                        vol.Optional(
+                            CONF_API_DOMAIN, default=API_DOMAIN_GLOBAL
+                        ): SelectSelector(
+                            SelectSelectorConfig(
+                                options=domain_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
                     }
                 ),
                 user_input or {},
@@ -220,6 +246,7 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_REDUCE_API_CALLS: user_input.get(
                             CONF_REDUCE_API_CALLS, DEFAULT_REDUCE_API_CALLS
                         ),
+                        CONF_API_DOMAIN: self._api_domain,
                     },
                 )
 
@@ -272,7 +299,16 @@ class FoxESSConfigFlow(ConfigFlow, domain=DOMAIN):
         reauth_entry = self._get_reauth_entry()
 
         if user_input is not None:
-            _, error = await _fetch_device_list(self.hass, user_input[CONF_APIKEY])
+            api_domain = reauth_entry.options.get(
+                CONF_API_DOMAIN,
+                reauth_entry.data.get(CONF_API_DOMAIN, API_DOMAIN_GLOBAL),
+            )
+            if api_domain != API_DOMAIN_GLOBAL:
+                _, error = await _fetch_device_list(
+                    self.hass, user_input[CONF_APIKEY], api_domain
+                )
+            else:
+                _, error = await _fetch_device_list(self.hass, user_input[CONF_APIKEY])
             if error in (None, "no_devices"):
                 return self.async_update_reload_and_abort(
                     reauth_entry,
@@ -319,8 +355,22 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
             current_api_key = self.config_entry.options.get(
                 CONF_APIKEY, self.config_entry.data.get(CONF_APIKEY)
             )
-            if new_api_key and new_api_key != current_api_key:
-                _, error = await _fetch_device_list(self.hass, new_api_key)
+            current_api_domain = self.config_entry.options.get(
+                CONF_API_DOMAIN,
+                self.config_entry.data.get(CONF_API_DOMAIN, API_DOMAIN_GLOBAL),
+            )
+            new_api_domain = user_input_copy.get(CONF_API_DOMAIN, current_api_domain)
+
+            if (new_api_key and new_api_key != current_api_key) or (
+                new_api_domain != current_api_domain
+            ):
+                key_to_test = new_api_key or current_api_key
+                if new_api_domain != API_DOMAIN_GLOBAL:
+                    _, error = await _fetch_device_list(
+                        self.hass, key_to_test, new_api_domain
+                    )
+                else:
+                    _, error = await _fetch_device_list(self.hass, key_to_test)
                 if error in ("invalid_auth", "cannot_connect"):
                     errors["base"] = error
 
@@ -331,6 +381,13 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
         current_data = self.config_entry.data
         device_sn = current_data.get(CONF_DEVICESN, "")
         name = current_data.get(CONF_NAME, DEFAULT_NAME)
+        current_api_domain = current_options.get(
+            CONF_API_DOMAIN, current_data.get(CONF_API_DOMAIN, API_DOMAIN_GLOBAL)
+        )
+        domain_options = [
+            SelectOptionDict(value=url, label=label)
+            for url, label in API_DOMAINS.items()
+        ]
         sanity_check = float(
             current_options.get(
                 CONF_ENERGY_GENERATED_SANITY,
@@ -359,6 +416,15 @@ class FoxESSOptionsFlowHandler(OptionsFlow):
                             CONF_APIKEY, current_data.get(CONF_APIKEY, "")
                         ),
                     ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                    vol.Optional(
+                        CONF_API_DOMAIN,
+                        default=current_api_domain,
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=domain_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
                     vol.Optional(
                         CONF_ENERGY_GENERATED_SANITY,
                         default=sanity_check,

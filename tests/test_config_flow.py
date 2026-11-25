@@ -205,6 +205,7 @@ async def test_create_entry(
         "extendPV": False,
         "energyGeneratedSanityCheck": 100.0,
         "reduceAPICalls": False,
+        "api_domain": "https://www.foxesscloud.com",
     }
     assert result["result"].unique_id == STEP2_INPUT["deviceSN"]
     mock_setup_entry.assert_called_once()
@@ -683,7 +684,7 @@ async def test_options_flow_success(
         )
 
     assert result2["type"] is FlowResultType.CREATE_ENTRY
-    assert result2["data"] == new_options
+    assert result2["data"] == {**new_options, "api_domain": "https://www.foxesscloud.com"}
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -911,5 +912,93 @@ async def test_async_step_import_with_reduce_api_calls(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_REDUCE_API_CALLS] is True
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_step1_us_domain_selection_and_create_entry(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Selecting North America API domain passes it to discovery and stores it in entry data."""
+    from custom_components.foxess.const import API_DOMAIN_US, CONF_API_DOMAIN
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)) as mock_fetch:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"apiKey": "us-api-key", CONF_API_DOMAIN: API_DOMAIN_US},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "device"
+    mock_fetch.assert_called_once_with(hass, "us-api-key", API_DOMAIN_US)
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], STEP2_INPUT
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_API_DOMAIN] == API_DOMAIN_US
+
+
+async def test_fetch_device_list_us_domain(hass: HomeAssistant) -> None:
+    """_fetch_device_list posts to North American portal URL when specified."""
+    from custom_components.foxess.const import API_DOMAIN_US
+
+    session = _make_mock_session(
+        status=200, json_return_value={"errno": 0, "result": {"data": MOCK_DEVICES}}
+    )
+    with patch(
+        "custom_components.foxess.config_flow.async_get_clientsession",
+        return_value=session,
+    ), patch(
+        "custom_components.foxess.config_flow.waitforAPI", new_callable=AsyncMock
+    ):
+        devices, error = await _fetch_device_list(hass, "us-key", API_DOMAIN_US)
+
+    assert error is None
+    assert devices == MOCK_DEVICES
+    assert session.post.call_args[0][0] == f"{API_DOMAIN_US}/op/v0/device/list"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_flow_change_api_domain_validates_and_saves(
+    hass: HomeAssistant,
+) -> None:
+    """Changing api_domain in options validates credentials against the new domain."""
+    from custom_components.foxess.const import API_DOMAIN_GLOBAL, API_DOMAIN_US, CONF_API_DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FoxESS (SN123)",
+        unique_id="SN123",
+        data={
+            "apiKey": "my-key",
+            "deviceSN": "SN123",
+            "deviceID": "SN123",
+            "name": "FoxESS",
+            CONF_API_DOMAIN: API_DOMAIN_GLOBAL,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+
+    with _patch_fetch_device_list((MOCK_DEVICES, None)) as mock_fetch:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input={
+                "apiKey": "my-key",
+                CONF_API_DOMAIN: API_DOMAIN_US,
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    mock_fetch.assert_called_once_with(hass, "my-key", API_DOMAIN_US)
+    assert entry.options[CONF_API_DOMAIN] == API_DOMAIN_US
 
 

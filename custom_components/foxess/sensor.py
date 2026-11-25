@@ -63,6 +63,7 @@ from .const import (
     ATTR_SLAVE,
     BATTERY_LEVELS,
     CONF_APIKEY,
+    CONF_API_DOMAIN,
     CONF_DEVICEID,
     CONF_DEVICESN,
     CONF_ENERGY_GENERATED_SANITY,
@@ -127,6 +128,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
             CONF_REDUCE_API_CALLS, default=DEFAULT_REDUCE_API_CALLS
         ): cv.boolean,
         vol.Optional(CONF_SHOW_UNKNOWN_ZERO, default=False): cv.boolean,
+        vol.Optional(CONF_API_DOMAIN, default=_ENDPOINT_OA_DOMAIN): cv.string,
     }
 )
 
@@ -206,7 +208,8 @@ class FoxDataUpdateCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Initialize FoxESS coordinator."""
         self.config = config
-        self.client = client or FoxESSApiClient(hass)
+        base_url = config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+        self.client = client or FoxESSApiClient(hass, base_url=base_url)
         self.devicesn = config.get(CONF_DEVICESN)
         self.deviceID = config.get(CONF_DEVICEID) or self.devicesn
         self.inverter_name = config.get(CONF_NAME, DEFAULT_NAME)
@@ -236,6 +239,7 @@ class FoxDataUpdateCoordinator(DataUpdateCoordinator):
                 "hasBattery": config.get("has_battery", False),
                 "status": "3",
             },
+            "_api_domain": base_url,
             "online": False,
             "workMode": None,
             "schedulerEnabled": False,
@@ -945,7 +949,9 @@ def _is_ok(response: dict) -> bool:
 
 
 async def getOADeviceDetail(hass, allData, devicesn, apiKey):
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     res, response, elapsed_ms = await client.async_get_device_detail(
         devicesn, apiKey, v1_api=V1_Api
     )
@@ -978,7 +984,9 @@ async def getOADeviceDetail(hass, allData, devicesn, apiKey):
 
 
 async def getOADeviceList(hass, allData, devicesn, apiKey):
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     res, response, elapsed_ms = await client.async_get_device_list(
         apiKey, page=1, page_size=10
     )
@@ -1029,7 +1037,9 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
     if hasBattery:
         # only make this call if device detail reports battery fitted
         _LOGGER.debug("OABattery Settings fetch for SN: %s", devicesn)
-        client = FoxESSApiClient(hass)
+        client = FoxESSApiClient(
+            hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+        )
         res, response, elapsed_ms = await client.async_get_battery_settings(devicesn, apiKey)
         if res is not FetchResult.OK or not response:
             _LOGGER.debug("Unable to get OA Battery Settings from FoxESS Cloud")
@@ -1066,7 +1076,9 @@ async def getOABatterySettings(hass, allData, devicesn, apiKey):
 
 async def getOAWorkModeAndScheduler(hass, allData, devicesn, apiKey):
     """Fetch Work Mode and Scheduler flag/groups from FoxESS Cloud."""
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     try:
         res, resp, _ = await client.async_get_work_mode(devicesn, apiKey)
         if res is FetchResult.OK and resp and resp.get("errno") == 0:
@@ -1125,7 +1137,9 @@ async def getOAWorkModeAndScheduler(hass, allData, devicesn, apiKey):
 
 
 async def getReport(hass, allData, apiKey, devicesn):
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     _LOGGER.debug("OA Report fetch for SN %s", devicesn)
 
     now = datetime.now()
@@ -1185,7 +1199,9 @@ async def getReport(hass, allData, apiKey, devicesn):
 
 
 async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     _LOGGER.debug("getReportDailyGeneration fetch for SN %s", devicesn)
 
     res, response, elapsed_ms = await client.async_get_daily_generation(devicesn, apiKey)
@@ -1252,7 +1268,9 @@ async def getReportDailyGeneration(hass, allData, apiKey, devicesn):
 
 
 async def getRaw(hass, allData, apiKey, devicesn, reduce_api_calls: bool = False):
-    client = FoxESSApiClient(hass)
+    client = FoxESSApiClient(
+        hass, base_url=allData.get("_api_domain", _ENDPOINT_OA_DOMAIN)
+    )
     raw_vars = None
     if RestrictGetVar:
         _LOGGER.debug("Getting Device Variable in restricted mode")
@@ -1536,6 +1554,12 @@ class FoxESSEntity(CoordinatorEntity, SensorEntity):
         inverter_name = getattr(self.coordinator, "inverter_name", None) or devicesn
         data = getattr(self.coordinator, "data", {}) or {}
         addressbook = data.get("addressbook", {}) if isinstance(data, dict) else {}
+        coord_config = getattr(self.coordinator, "config", None)
+        config_url = (
+            coord_config.get(CONF_API_DOMAIN, _ENDPOINT_OA_DOMAIN)
+            if isinstance(coord_config, dict)
+            else _ENDPOINT_OA_DOMAIN
+        )
         return DeviceInfo(
             identifiers={(DOMAIN, devicesn)},
             name=inverter_name,
@@ -1543,7 +1567,7 @@ class FoxESSEntity(CoordinatorEntity, SensorEntity):
             model=addressbook.get(ATTR_DEVICE_TYPE),
             sw_version=addressbook.get(ATTR_MASTER),
             serial_number=devicesn,
-            configuration_url=_ENDPOINT_OA_DOMAIN,
+            configuration_url=config_url,
         )
 
 
